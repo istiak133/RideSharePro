@@ -1,0 +1,201 @@
+RideShare AI Pro - MVP theke Bad Deowa Features
+Total Excluded: 14 Features
+These will be implemented AFTER MVP launch
+====================================
+
+
+
+PHASE 2: Enhancement Features
+(MVP launch er 3-4 weeks por korbe)
+====================================
+
+Total Phase 2: 11 features
+
+
+From Rider Features:
+--------------------
+
+1. In-App Voice Call (WebRTC)
+   Main List: Feature 13
+   Ki korbe: Internet diye free call, phone number share hobe na
+   Keno bad: Complex WebRTC implementation, MVP te chat enough
+   Kokhon: Phase 2, Week 1-2
+
+2. Schedule-a-Ride
+   Main List: Feature 16
+   Ki korbe: 1 hour theke 7 days ahead advance booking
+   Keno bad: Nice-to-have, core ride flow age dorkar
+   Kokhon: Phase 2, Week 2
+
+
+From Driver Features:
+--------------------
+
+3. Rate Rider
+   Main List: Feature 29
+   Ki korbe: Ride sheshe driver rider ke 1-5 stars dibe
+   Keno bad: MVP te driver rating enough, rider rating later
+   Kokhon: Phase 2, Week 1
+
+4. Earnings Dashboard
+   Main List: Feature 30
+   Ki korbe: Daily/weekly/monthly earnings detailed breakdown
+   Keno bad: Basic earnings ride history te dekha jabe
+   Kokhon: Phase 2, Week 2
+
+5. Performance Metrics
+   Main List: Feature 31
+   Ki korbe: Acceptance rate, completion rate, average rating
+   Keno bad: Analytics feature, launch er jonno mandatory na
+   Kokhon: Phase 2, Week 2-3
+
+6. Driver Heatmap
+   Main List: Feature 32
+   Ki korbe: Map e demand zones dekha, kothay beshi rides
+   Keno bad: Launch e data kom thakbe, data hole useful
+   Kokhon: Phase 2, Week 3
+
+7. Parcel Pickup (Driver Side)
+   Main List: Feature 33
+   Ki korbe: Sender theke OTP verify kore parcel receive + photo
+   Keno bad: Parcel delivery secondary, ride-sharing age
+   Kokhon: Phase 2, Week 3-4
+
+8. Parcel Delivery (Driver Side)
+   Main List: Feature 34
+   Ki korbe: Receiver ke delivery code verify kore parcel deowa
+   Keno bad: Parcel module secondary
+   Kokhon: Phase 2, Week 3-4
+
+
+From Parcel Features:
+--------------------
+
+9. Parcel Booking
+   Main List: Feature 35
+   Ki korbe: Sender/receiver info diye parcel delivery book
+   Keno bad: Separate module, ride-sharing stable hole korbe
+   Kokhon: Phase 2, Week 3-4
+
+10. Parcel Tracking (Public)
+    Main List: Feature 36
+    Ki korbe: Browser e tracking link diye live status dekha
+    Keno bad: Parcel booking chara ei feature lagbe na
+    Kokhon: Phase 2, Week 3-4
+
+
+From Web Platform:
+--------------------
+
+11. Web Booking Portal
+    Main List: Feature 43
+    Ki korbe: Desktop/laptop browser theke ride booking
+    Keno bad: Mobile-first approach, web pore
+    Kokhon: Phase 2, Week 4
+
+
+
+PHASE 3: Advanced Features
+(Phase 2 er 2-3 weeks por korbe)
+====================================
+
+Total Phase 3: 6 features
+
+
+From Admin Features:
+--------------------
+
+1. Financial Reports
+   Main List: Feature 41
+   Ki korbe: Revenue reports, commission breakdown, Excel export
+   Keno bad: Basic revenue dashboard e ache, detailed pore
+   Kokhon: Phase 3, Week 1
+
+2. Role-Based Access Control (RBAC)
+   Main List: Feature 42
+   Ki korbe: Super Admin, Support, Finance alada role
+   Keno bad: Initially 1-2 admin enough, roles pore
+   Kokhon: Phase 3, Week 1
+
+3. Fleet Management Approval
+   Main List: Feature 43
+   Ki korbe: Fleet owners verify kore approve
+   Keno bad: Fleet owners pore, individual drivers age
+   Kokhon: Phase 3, Week 2
+
+4. Ride Bidding Configuration
+   Main List: Feature 44
+   Ki korbe: Rider-driver dordam system enable/disable
+   Keno bad: Standard pricing age stable hote hobe
+   Kokhon: Phase 3, Week 2
+
+5. System Monitoring
+   Main List: Feature 45
+   Ki korbe: Server uptime, API performance, error logs
+   Keno bad: Grafana, PM2 diye manage kora jabe initially
+   Kokhon: Phase 3, Week 3
+
+6. Fleet Dashboard
+   Main List: Feature 35 (Driver)
+   Ki korbe: Fleet owner multiple drivers manage
+   Keno bad: B2B feature, individual drivers hote hobe age
+   Kokhon: Phase 3, Week 2-3
+
+
+
+SUMMARY
+====================================
+
+  Phase     Features    Timeline
+  ----------------------------------------
+  Phase 2     11        3-4 weeks after MVP
+  Phase 3      6        2-3 weeks after Phase 2
+  ----------------------------------------
+  Total       17        5-7 weeks after MVP
+
+
+
+KENO EGULO MVP TE NEI?
+====================================
+
+1. Core Ride Flow age dorkar
+   Registration, Booking, Matching, Tracking, Payment, Rating
+   Eta chara app cholbe na - tai etai MVP
+
+2. Chat ache tai Voice Call chara cholbe
+   WebRTC complex, MVP te chat diye communicate hobe
+
+3. Parcel delivery alada module
+   Ride-sharing stable hole add korbe
+
+4. Advanced admin tools pore
+   Shurute 1-2 admin manually manage korbe
+
+5. Heatmap o Performance Metrics
+   Data chara meaningless, launch er por data hole korbe
+
+6. Web Portal
+   Mobile-first, web pore korbe
+
+7. Fleet Management
+   Individual drivers age, fleet pore
+
+
+
+DEPENDENCY MAP
+====================================
+
+Phase 2 needs MVP ready:
+  - Voice Call needs working ride flow
+  - Schedule Ride needs booking stable
+  - Parcel needs Maps + Tracking + OTP ready
+  - Earnings Dashboard needs completed rides data
+  - Heatmap needs enough ride data
+  - Web Portal needs all APIs stable
+
+Phase 3 needs Phase 2 ready:
+  - RBAC needs multiple admin users
+  - Fleet needs driver management working
+  - Bidding needs pricing system mature
+  - Reports needs financial data
+  - System Monitoring needs production traffic

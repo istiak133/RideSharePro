@@ -1,0 +1,313 @@
+﻿RideShare AI Pro
+Final MVP — Feature Specification Document
+For Database Design & Development Reference
+Total MVP Features: 39  |  Platform: iOS & Android + Admin Web Panel
+
+
+
+
+Category 1: Rider (Customer) Features — 17 Features
+
+
+Phase 1: Onboarding
+Feature 1:  Phone-Based Registration   [MVP CORE]
+Ki kore:
+User ekta 11-digit Bangladeshi phone number enter kore (01 diye shuru). System validate kore format thik ache kina ebong ei number already registered kina. Thik thakle Twilio API diye 6-digit OTP SMS pathay. User OTP enter korle system verify kore. Correct hole ekta unique UUID diye user account create hoy, JWT token generate hoy ebong device e secure store hoy. User automatically logged in hoy — kono password lagbe na.
+Validation rules:
+Phone exactly 11 digits, 01 diye shuru mandatory. OTP 5 minute er moddhe valid. Max 3 bar bhul OTP dile temporary block. Ghontay max 5 bar OTP request per phone. Per IP ghontay max 50 request (spam protection).
+Database tables:
+users (id UUID, phone VARCHAR unique, role ENUM rider/driver, status ENUM active/blocked, created_at). otp_verifications (phone, otp_code hashed, attempts INT, expires_at TIMESTAMP, created_at).
+Security:
+OTP bcrypt diye hashed store hoy plain text na. Rate limiting dui layer e — phone level ebong IP level. JWT token expiry ache, refresh token system thakbe.
+Feature 2:  User Profile Management   [MVP CORE]
+Ki kore:
+Registration er por user profile completion screen e jay. Rider der jonno mandatory: full name (min 3 char), profile photo, date of birth (18+ verify korte). Optional: email, emergency contact name + phone, preferred language. Profile photo client-side e compress hoy (max 400KB) tarpor Supabase Storage e upload hoy, public URL database e save hoy.
+Driver er additional mandatory fields:
+NID card photo front, NID card photo back, driving license photo, vehicle type (shudhu CAR — is release e), vehicle model, vehicle registration number, vehicle photo, bank account holder name, account number (encrypted store), bank name, branch name. Driver submit korle status 'Pending Verification' hoy — kono ride accept korte parbe na jotokhon admin approve na kore.
+Validation:
+Client-side real-time validation: name min 3 char, email format check, photo size/format check (jpg/png only, max 5MB before compression), age 18+ check. Server-side shob kicu re-validate hoy — client ke trust kora jay na. Photo magic number diye format verify. NID/license OCR check (readable kina).
+Database tables:
+user_profiles (user_id FK, full_name, photo_url, date_of_birth, email, emergency_contact_name, emergency_contact_phone, language_preference, updated_at). driver_documents (user_id FK, nid_front_url, nid_back_url, license_url, verification_status ENUM pending/approved/rejected, verified_by admin_id FK, verified_at, rejection_reason). driver_vehicles (user_id FK, vehicle_type ENUM car, vehicle_model, vehicle_year, registration_number, vehicle_photo_url). bank_accounts (user_id FK, account_holder_name, account_number encrypted, bank_name, branch_name, routing_number).
+
+
+Phase 2: Ride Booking
+Feature 3:  Google Maps Integration   [MVP CORE]
+Ki kore:
+Rider app open korle Google Maps SDK device GPS access kore current location detect kore ebong map e blue dot hisebe dekhay. Rider pickup point select korte pare 3 ভাবে: (1) current location button tap, (2) search box e address type korle Google Places Autocomplete suggestions dekhay, (3) map e directly tap kore pin drop. Same process e destination select kore. Duto location select hole Google Directions API call hoy — distance (km), estimated duration (min), ebong suggested route return kore.
+Database tables:
+Ride booking er shomoy pickup_lat, pickup_lng, pickup_address, drop_lat, drop_lng, drop_address rides table e store hoy.
+API usage:
+Google Maps SDK (map display), Google Places API (address autocomplete), Google Directions API (route + distance + ETA calculation), Geocoding API (coordinates to address conversion).
+Feature 4:  Vehicle Type Selection — Cars Only   [CLIENT REQUIREMENT]
+Ki kore:
+Is release e rider shudhu 'Car' option dekhbe. Bike, CNG, van kono option UI te thakbe na. Car select korle system Car-specific fare rules load kore, Car driver pool theke nearby drivers khoje. Future phases e onno vehicle type add kora jabe without breaking existing logic — vehicle_type ENUM properly design korte hobe.
+Database tables:
+fare_rules (vehicle_type ENUM, base_fare DECIMAL, distance_rate DECIMAL, time_rate DECIMAL, minimum_fare DECIMAL, updated_at). drivers table e vehicle_type column thakbe filter er jonno.
+Feature 5:  Dynamic Fare Calculation   [MVP CORE]
+Ki kore:
+Google Directions API theke distance ebong estimated time paowar por system fare calculate kore. Formula: final_fare = (base_fare + distance_km x distance_rate + time_min x time_rate). Result minimum_fare er niche hole minimum_fare use hoy. Tarpor surge multiplier apply hoy — nearby active rides vs available drivers er ratio diye calculate hoy (demand/supply). Ratio 1.5 er beshi hole surge start hoy, max cap 3x. Result 5 er nearest multiple e round hoy. Rider ke full breakdown dekhano hoy: base fare, distance fare, time fare, surge amount, total — transparency er jonno trust build kore.
+Surge logic:
+Zone wise active_rides count ebong available_drivers count compare kora hoy. Ratio >= 1.5 hole 1.2x, >= 2.0 hole 1.5x, >= 2.5 hole 1.8x, >= 3.0 hole 2.5x, extreme case e max 3.0x. Surge value Redis e cache hoy 60 second TTL diye — database hit kome.
+Database tables:
+fare_rules (vehicle_type, base_fare, distance_rate, time_rate, minimum_fare). surge_history (zone_id, timestamp, surge_multiplier, active_rides, available_drivers). rides table e estimated_fare, surge_multiplier, fare_breakdown JSONB store hoy.
+Feature 6:  Ride Booking   [MVP CORE]
+Ki kore:
+Rider fare estimate dekhe 'Confirm Booking' tap kore. System ekta unique ride record create kore database e status 'searching_driver' diye. Ride ID, pickup/drop coordinates, estimated fare, surge multiplier, rider ID, selected vehicle type, booking timestamp shob store hoy. Immediate booking hole status 'searching_driver', scheduled booking hole status 'scheduled' hoy ebong scheduled_at timestamp store hoy. Ride ID rider ke return kore — screen e dekhay.
+Database tables:
+rides (id UUID, rider_id FK, driver_id FK nullable, pickup_lat, pickup_lng, pickup_address, drop_lat, drop_lng, drop_address, vehicle_type, status ENUM scheduled/searching_driver/driver_assigned/driver_on_way/arrived/started/completed/cancelled, estimated_fare, final_fare, surge_multiplier, fare_breakdown JSONB, pickup_otp_hash, otp_attempts INT default 0, otp_verified BOOLEAN, scheduled_at TIMESTAMP nullable, started_at, completed_at, cancelled_at, cancellation_reason, created_at).
+Feature 7:  Schedule-a-Ride   [CLIENT REQUIREMENT]
+Ki kore:
+Rider 'Schedule a Ride' option select kore. Date picker ebong time picker dekhay — minimum 1 ghonta future, maximum 7 din future. Rider local timezone e time select kore kintu system UTC e convert kore store kore. Booking confirm hole rides table e status 'scheduled', scheduled_at UTC timestamp store hoy. Scheduled time er 15 minute age ekta background job (cron) chale jeta nearby available Car drivers ke special 'Upcoming Scheduled Ride' notification pathay. Kono driver accept na korle 10 minute age wider radius (10km) e retry hoy. Driver accept korle confirmed, na korle system 5 minute age last try kore — tarao na korle rider ke notify kore 'No driver found, please rebook'.
+Cancellation policy:
+Rider scheduled ride cancel korte parbe free of cost jodi scheduled time er 30 minute beshi baki thake. 30 minute er moddhe cancel hole cancellation fee apply hobe (admin configurable).
+Timezone handling:
+Server always UTC e store kore. Rider app device timezone detect kore local time show kore. Display er shomoy UTC → local conversion hoy. Driver notification e driver er local time dekhay.
+Database tables:
+rides table e scheduled_at TIMESTAMP nullable. scheduled_ride_jobs (ride_id FK, job_type ENUM 15min_notify/10min_retry/5min_final, scheduled_for TIMESTAMP, executed_at nullable, status ENUM pending/executed/failed).
+Feature 8:  Driver Search Status   [MVP CORE]
+Ki kore:
+Booking confirm howar shonge shonge rider 'Searching for driver...' screen dekhe animated indicator shohit. Background e system PostGIS (ba Redis GeoHash) use kore 5km radius e online Car drivers khoje — sorted by distance. Top 10 driver ke FCM notification pathay simultaneously. Kono driver accept korle immediately screen change hoy 'Driver Found!'. 2 minute er moddhe kono driver accept na korle system radius 10km e baro kore re-search kore. Total 5 minute er moddhe driver na pele rider ke 'No driver available' dekhay with retry option.
+Database tables:
+drivers table e current_lat, current_lng, status ENUM online/offline/busy, vehicle_type thakbe geospatial query er jonno. PostGIS ST_DWithin function use hobe proximity search e.
+
+
+Phase 3: Live Tracking & Ride Execution
+Feature 9:  Real-Time Driver Location Tracking   [MVP CORE]
+Ki kore:
+Driver ride accept korar por driver app background e GPS location collect kore proti 5 second e. Ei location Firebase Realtime Database e push hoy: /driver_locations/{driver_id} path e lat, lng, heading, speed, timestamp store hoy. Rider app ei path e Firebase listener set up kore — naya data ashle automatically map e driver marker update hoy smooth animation shohit. Rider map e driver er current position, route line, ebong ETA dekhe. Driver pickup location er 100 meter er moddhe ashle rider ke 'Driver is nearby!' notification jay.
+ETA calculation:
+Proti 30 second e Google Directions API call hoy driver current location theke pickup point — real traffic consider kore updated ETA calculate hoy. Rider screen e countdown update hoy.
+Database / Firebase structure:
+Firebase Realtime DB: /driver_locations/{driver_id}: {lat, lng, heading, speed, timestamp, ride_id}. Rider disconnect hole listener automatically remove hoy memory leak prevent korte.
+Feature 10:  Pickup OTP Verification   [MVP CORE]
+Ki kore:
+Ride create howar shomoy system random 4-digit OTP generate kore (1000-9999 range). bcrypt diye hash kore rides table e pickup_otp_hash column e store hoy — plain text kokhono store hoy na. Rider app e bold large font e code dekhay with copy button. Driver pickup location e 'I've Arrived' tap korle rider ke 'Driver has arrived' notification jay ebong rider screen e code prominently dekhay. Driver code enter kore — system bcrypt.compare() diye verify kore. Correct hole otp_verified = true, ride start possible. Wrong hole attempt count bare — max 3 attempt, 3 bar fail hole ride auto-cancel hoy ebong admin flag hoy investigation er jonno.
+Edge cases:
+Rider phone dead hole driver support call korte parbe. Network issue hole driver app locally encrypted code cache kore offline verify korte parbe (5 min TTL). Code forgotten hole rider app e 'Resend Code' option ache.
+Database tables:
+rides table e pickup_otp_hash VARCHAR, otp_attempts INT default 0, otp_verified BOOLEAN default false, otp_generated_at TIMESTAMP. otp_audit_log (ride_id FK, driver_id FK, attempt_number, success BOOLEAN, timestamp, ip_address) — investigation er jonno.
+Feature 11:  Ride Progress Tracking   [MVP CORE]
+Ki kore:
+Ride 'started' status e gele rider app full-screen map dekhe. Map e: rider current location (blue dot), destination (red pin), driver/car icon (moving), suggested route (blue line). Bottom panel e: destination name, remaining distance (km), ETA (min), estimated fare. Driver GPS update proti 5 second e Firebase theke rider app receive kore map animate kore. Ride shesh hole 'You have arrived' notification jay.
+Route recording:
+Ride chalukale driver app proti 5 second e GPS point ride_route_points table e insert kore. Eta pore actual distance calculate (GPS points theke), fare verification, dispute resolution, ebong route deviation detection e use hoy.
+Database tables:
+ride_route_points (id, ride_id FK, lat DECIMAL, lng DECIMAL, speed DECIMAL, heading DECIMAL, recorded_at TIMESTAMP). Index on ride_id for fast retrieval.
+
+
+Phase 4: Communication
+Feature 12:  In-App Chat   [CLIENT REQUIREMENT]
+Ki kore:
+Driver ride accept korar por rider ebong driver dujoner app e chat icon active hoy. Tap korle real-time chat screen khule. Firebase Realtime Database ba Stream Chat use kore message pathano/receive kora hoy. Message dekhay: sender naam, time, message text. 'Delivered' ebong 'Read' receipt dekhay. Ride shesh howar 24 ghonta por chat history automatically delete hoy (privacy). Kono side theke phone number share kora system detect korte parbe (optional — Phase 2 feature). Chat window e driver/rider name, photo ebong rating dekhay trust er jonno.
+Database / Firebase structure:
+Firebase: /chats/{ride_id}/messages/{message_id}: {sender_id, sender_role ENUM rider/driver, message, timestamp, read BOOLEAN}. Ride complete howar 24 ghonta por Firebase rule diye auto-delete.
+Privacy:
+Phone number, email, ba kono personal contact information chat e share hole system flag korbe (Phase 2). MVP te shudhu manual report option thakbe.
+
+
+Phase 5: Payment
+Feature 13:  Cash Payment   [MVP CORE]
+Ki kore:
+Ride 'completed' status e gele driver app e final fare dekhay ebong 'Confirm Cash Received' button thake. Rider cash dey physically, driver button tap kore confirm kore. System payment record create kore: amount, method 'cash', status 'completed', timestamp. Platform commission (25%) ebong driver earning (75%) automatically calculate kore store kore. Payment confirmed hole rider app e receipt dekhay. Rider-o 'Confirm Payment' button dekhte parbe (optional trust layer) — dispute korte parbe jodi cash exchange na hoy.
+Commission split:
+Total fare er 25% platform commission, 75% driver earning. Driver cash rakhe — weekly/monthly settlement e platform ke commission dey (Cash Settlement Feature 39 e handle hoy).
+Database tables:
+payments (id UUID, ride_id FK unique, amount DECIMAL, payment_method ENUM cash/card, status ENUM pending/completed/failed/disputed, platform_commission DECIMAL, driver_earning DECIMAL, paid_at TIMESTAMP, receipt_url, verified_by ENUM driver/rider/system/admin, dispute_status ENUM null/reported/resolved, dispute_reason TEXT, created_at).
+Feature 14:  Card Payment (Stripe)   [CLIENT REQUIREMENT]
+Ki kore:
+Rider profile e 'Add Card' option thake. Tap korle Stripe SDK er secure card input form khule — card number, expiry, CVV enter kore. Stripe ei data directly receive kore, backend kokhono raw card data dekhe na (PCI DSS compliant). Stripe ekta payment_method_id return kore jeta database e save hoy. Ride shesh hole rider 'Pay by Card' select korle Stripe PaymentIntent create hoy server-side, charge hoy. Success hole payment record 'completed'. Fail hole rider ke fallback e cash option offer kora hoy. Card 'Last 4 digits' ebong brand (Visa/Mastercard) dekhay — full number na.
+Sandbox to production:
+Development e Stripe test keys use hobe. Handover e production keys swap korle live hobe — kono code change lagbe na. Sandbox e test card numbers diye full flow tested thakbe.
+Database tables:
+payment_methods (id UUID, user_id FK, stripe_payment_method_id VARCHAR, last4 VARCHAR 4, brand VARCHAR, is_default BOOLEAN, created_at). payments table e stripe_payment_intent_id VARCHAR column thakbe.
+Feature 15:  Bilingual UI — English + 2nd Language   [CLIENT REQUIREMENT]
+Ki kore:
+Entire app er shob text (buttons, labels, messages, errors, notifications) 2ta language file e separated: /locales/en.json ebong /locales/[lang].json (client supplied). App start e user er saved language preference load hoy. Settings e language toggle thake — tap korle instantly switch hoy, app restart lagbe na. Date format, time format, currency display o language onujayi change hoy. Backend error messages o translated version pathay.
+Language file structure:
+Key-value pairs — e.g. {'booking.confirm': 'Confirm Booking', 'payment.cash': 'Cash Payment'}. Nested structure use hobe category wise. Client 2nd language er .json file provide korbe — developer shudhu fill in korbe, structure already ready thakbe.
+Database tables:
+user_profiles table e language_preference VARCHAR ('en' ba language code) column thakbe.
+
+
+Phase 6: Post-Ride
+Feature 16:  Rating & Review System   [MVP CORE]
+Ki kore:
+Payment confirm howar por rider ke automatically rating screen dekhay — skip possible kintu next ride e reminder ase. Rider driver ke 1-5 star dey ebong optional text comment likhte pare. Driver o rider ke rate kore. Shob rating submit hole system user er average rating recalculate kore profile e update kore. Rating history store hoy.
+Rating impact:
+Driver er average rating 4.0 er niche gele matching algorithm e lower priority pabe. 3.5 er niche gele admin review flag hoy. Consistently kharap rider (3.0 er niche) ke driver decline korte parbe without penalty.
+Database tables:
+ratings (id UUID, ride_id FK unique, rated_by FK, rated_user FK, role ENUM rider_rates_driver/driver_rates_rider, stars INT 1-5, comment TEXT nullable, created_at). users table e average_rating DECIMAL ebong total_ratings INT column thakbe — update trigger ba application layer e recalculate.
+Feature 17:  Push Notifications   [MVP CORE]
+Ki kore:
+Firebase Cloud Messaging (FCM) use kore. User registration er shomoy device FCM token collect kore database e save hoy. Token expire hole automatically refresh hoy. Notifcation pathano hoy ei events e — Rider er jonno: driver accepted, driver on way, driver arrived (100m e), ride started, ride completed, payment confirmed, scheduled ride reminder (15 min age). Driver er jonno: new ride request, ride request expired, rider cancelled, payment received, document approved/rejected. Tap korle notification relevant screen e deep link kore niye jay.
+Database tables:
+device_tokens (user_id FK, token VARCHAR, platform ENUM ios/android, updated_at). notifications_log (user_id FK, type VARCHAR, title, body, data JSONB, sent_at, delivered BOOLEAN) — delivery tracking er jonno.
+
+
+
+
+
+
+Category 2: Driver Features — 13 Features
+
+
+Phase 1: Onboarding
+Feature 19:  Driver Registration   [MVP CORE]
+Ki kore:
+Rider registration er same flow — phone number enter, OTP verify, account create. Pার্থক্য shudhu role selection: 'I am a Driver' select korte hoy. Same security measures apply — OTP expiry, rate limiting, attempt limits. Account create howar por driver profile + document upload screen e redirect hoy.
+Database tables:
+users table e same structure, role = 'driver'.
+Feature 20:  Document Upload & Verification   [MVP CORE]
+Ki kore:
+Driver profile complete korar por document upload screen dekhay. Upload korte hobe: NID front photo, NID back photo, driving license photo, vehicle photo (Car), vehicle details form (model, year, registration number). Bank account details input kore. Shob photo client-side compress hoy tarpor Supabase Storage e upload hoy. Shob data submit korle driver_documents table e save hoy status 'pending'. Admin notification jay 'New driver verification request'.
+Database tables:
+driver_documents (user_id FK, nid_front_url, nid_back_url, license_url, vehicle_photo_url, verification_status ENUM pending/approved/rejected, verified_by FK nullable, verified_at nullable, rejection_reason TEXT nullable, resubmission_count INT default 0). driver_vehicles (user_id FK, vehicle_type 'car', vehicle_model, vehicle_year, registration_number).
+Feature 21:  Pending Verification Status Screen   [MVP CORE]
+Ki kore:
+Document submit korar por driver app e clear 'Under Review' screen dekhay estimated time shohit ('Usually verified within 24 hours'). Admin approve korle FCM notification: 'Congratulations! Your account is verified. You can now go online.' Reject hole reason shohit notification: 'Documents rejected: [reason]. Please resubmit.' Driver app e specific rejected documents highlight kore resubmit button dekhay. Resubmit hole shudhu sei documents upload kore — baki shob same thake.
+
+
+Phase 2: Driver Operations
+Feature 22:  Go Online / Offline Toggle   [MVP CORE]
+Ki kore:
+Verified driver er home screen e bড় toggle button thake 'Go Online'. Tap korle: (1) device GPS permission check hoy, (2) location tracking start hoy background e, (3) database e driver status 'online' update hoy, (4) driver nearby search e visible hoy. 'Go Offline' tap korle tracking stop hoy, status 'offline', no more requests. Active ride thakle offline button disabled thake. 'Break' mode o ache — status 'break' hoy, location track hoy kintu ride request ashbe na (driver location data maintain kora dorkar heatmap er jonno Phase 2 e).
+Database tables:
+drivers (user_id FK, status ENUM online/offline/break/busy, current_lat DECIMAL, current_lng DECIMAL, last_location_update TIMESTAMP, is_verified BOOLEAN, acceptance_rate DECIMAL, average_rating DECIMAL, total_rides INT).
+Feature 23:  Ride Request Notification   [MVP CORE]
+Ki kore:
+Rider ride book korle system nearby online Car drivers ke FCM notification pathay simultaneously (top 10, sorted by distance). Notification e dekhay: pickup address, drop address, estimated fare (৳), distance to pickup (km). App e ekta 30-second countdown timer dekhay — time shesh hole auto-decline. Custom urgent ringtone/vibration thake.
+Database tables:
+ride_requests (ride_id FK, driver_id FK, sent_at TIMESTAMP, response ENUM pending/accepted/declined/expired, responded_at TIMESTAMP) — kono driver ke already pathano hoyeche track kore duplicate avoid korte.
+Feature 24:  Accept / Decline Ride   [MVP CORE]
+Ki kore:
+Driver 'Accept' ba 'Decline' tap kore. Accept er shomoy database transaction shuru hoy — SELECT FOR UPDATE diye rides table e row lock kore check kore driver_id IS NULL (mane abong accept kora hoyni). Null thakle UPDATE SET driver_id = this_driver, status = 'driver_assigned'. Commit. Ager moddhe onno driver accept kore gele row te driver_id thakbe — lock miss kore ROLLBACK hoy, driver ke 'Already taken' dekhay. Accept successful hole: (1) rider ke 'Driver found!' notification jay, (2) onno drivers ke 'Ride taken' notification jay, (3) driver app navigation screen e jay. Decline hole acceptance rate update hoy. 70% er niche gele warning, 60% er niche gele ride priority kome.
+Database tables:
+rides table update. driver_stats (driver_id FK, total_requests INT, total_accepts INT, total_declines INT, acceptance_rate DECIMAL, last_updated).
+Feature 25:  Navigate to Pickup   [MVP CORE]
+Ki kore:
+Driver ride accept korle screen e ekta map dekhay pickup location destination hisebe. 'Start Navigation' button tap korle 2 option: (1) In-app Google Maps SDK navigation, (2) External Google Maps app te open (user er preference e). In-app mode e turn-by-turn voice directions, real-time traffic, ETA dekhay. Driver er location Firebase e update hote thake — rider simultaneously dekhe. Driver pickup er 50 meter er moddhe ashle 'I've Arrived' button appear kore.
+
+
+Phase 3: Ride Execution
+Feature 26:  Pickup OTP Verification — Driver Side   [MVP CORE]
+Ki kore:
+Driver 'I've Arrived' tap korle: (1) rides table e status 'arrived' hoy, (2) rider ke 'Driver has arrived!' notification jay with code reminder. Driver screen e 4-box OTP input dekhay. Driver rider ke code jigges kore, enter kore. Backend bcrypt.compare() diye verify kore. Correct hole: otp_verified = true, 'Start Ride' button active hoy, rider ke notification jay. Wrong hole attempt count +1, remaining attempts dekhay. 3 bar fail hole ride cancelled, both parties notify, admin flag.
+Feature 27:  Start Ride   [MVP CORE]
+Ki kore:
+OTP verified hole 'Start Ride' button active thake. Driver tap korle: (1) rides table e status 'started', started_at = NOW(), (2) GPS route recording shuru hoy (ride_route_points table e insert), (3) Firebase e ride status update hoy, (4) rider ke 'Your ride has started' notification jay, (5) driver navigation destination er dike switch hoy. Ei point theke rider free cancellation possible na — cancellation fee applicable.
+Feature 28:  Navigation During Ride   [MVP CORE]
+Ki kore:
+Destination e jaowar Google Maps navigation. Rider simultaneously progress dekhe. Proti 5 second e GPS point record hoy — lat, lng, speed, heading, timestamp. Eta pore actual distance calculation (GPS points sum), fare verification, dispute e route proof, ebong deviation detection e use hoy. Significant route deviation detect hole (expected vs actual 20%+ difference) flag hoy.
+Database tables:
+ride_route_points (id, ride_id FK, lat, lng, speed, heading, recorded_at). Indexed on ride_id.
+Feature 29:  End Ride   [MVP CORE]
+Ki kore:
+Driver destination e pouchhe 'End Ride' button tap kore. System: (1) GPS route points theke actual distance calculate kore, (2) started_at theke actual duration calculate kore, (3) actual values diye final fare recalculate kore (surge booking time er ta use hoy — fair to user), (4) rides table update: status 'completed', completed_at, actual_distance, actual_duration, final_fare, (5) payment flow trigger hoy, (6) rating screen trigger hoy. Final fare estimated fare theke significantly alag hole (10%+ beshi) rider ke notification e explain kora hoy.
+Feature 30:  Collect Payment & Basic Earnings   [MVP CORE]
+Ki kore:
+Ride complete howar por driver screen e final fare dekhay ebong payment option: 'Cash Received' button. Tap korle payment record create hoy (Feature 13 er logic). Driver screen e simple earnings summary dekhay: aaj koto trips, aaj koto taka earn korece (75% commission er hishab), week e koto. Eta basic view — detailed analytics Phase 2 e.
+
+
+Phase 4: Scheduled Ride — Driver Side
+Feature 31:  Scheduled Ride Notification & Accept   [CLIENT REQUIREMENT]
+Ki kore:
+Scheduled time er 15 minute age background cron job nearby Car drivers ke special notification pathay. Notification e dekhay: 'Upcoming Scheduled Ride', pickup, drop, fare, scheduled time (driver local timezone e). Driver accept korle: (1) ride confirmed, (2) driver calendar reminder set hoy device e, (3) sei time slot e driver status 'busy' mark hoy — onno ride request ashbe na. Driver cancel korle normal cancel er cheye acceptance rate beshi kome (penalty). Accept na korle 10 minute age wider radius e retry.
+Feature 32:  In-App Chat — Driver Side   [CLIENT REQUIREMENT]
+Ki kore:
+Rider er shonge chat korar option thake ride active thakakale. Same Firebase/Stream Chat infrastructure — Feature 12 er mirror. Driver side e rider er naam, photo, rating dekhay. Chat icon active thake 'driver_assigned' theke 'completed' status e. Ride shesh howar 24 ghonta por history delete hoy.
+
+
+
+
+
+
+Category 3: Admin / Dashboard Features — 9 Features
+
+
+Core Admin Operations
+Feature 33:  Admin Login & 2FA Authentication   [MVP CORE]
+Ki kore:
+Admin panel ekta alag web app (React.js) — user app er shonge kono connection nei. Admin email + password diye login kore. 2FA mandatory: TOTP (Google Authenticator) ba SMS OTP. Wrong password 5 bar dile 30 minute lockout. Shob admin action audit_logs table e record hoy: who, what action, on which entity, when, IP address. Session 8 ghonta por expire hoy.
+Database tables:
+admin_users (id UUID, email VARCHAR unique, password_hash, role ENUM super_admin/verifier, is_active BOOLEAN, last_login, created_at). audit_logs (id, admin_id FK, action VARCHAR, entity_type VARCHAR, entity_id VARCHAR, details JSONB, ip_address, created_at).
+Feature 34:  Role-Based Access Control (RBAC)   [MVP CORE]
+Ki kore:
+2ta role: Super Admin — shob kicu access, other admin create/delete korte pare, financial data dekhe, shob settings change korte pare. Verifier — shudhu driver documents dekhe approve/reject korte parbe, financial data ba user management access nai. Middleware every API request e role check kore — unauthorized action hole 403 return kore. Shob permission change audit log e jay.
+Feature 35:  Driver Verification   [MVP CORE]
+Ki kore:
+Admin panel e 'Driver Verifications' section e pending drivers er list dekhay — naam, phone, submitted time, sorted oldest first. Specific driver click korle: profile photo, personal info, NID front/back (zoom capable), license photo (zoom), vehicle photo, vehicle details, bank account info shob side-by-side dekhay. Checklist e tick mark diye verify kore jete pare. 'Approve' click korle confirm modal — Yes hole: driver status active, notification pathay, log e record. 'Reject' click korle: reason select (predefined list + custom note), specific documents mark kore 'needs resubmission', driver ke notification pathay. Resubmit ashle again pending queue e jomay.
+Database tables:
+driver_documents table update. verification_logs (driver_id FK, admin_id FK, action ENUM approved/rejected, reason TEXT nullable, documents_to_resubmit TEXT[], created_at).
+Feature 36:  Admin Dashboard   [MVP CORE]
+Ki kore:
+Admin login korle default page. Real-time metrics: aajker total rides (completed/active/cancelled), total revenue today, active drivers right now, waiting riders, pending verifications count. Charts: last 7 days rides line chart, revenue breakdown pie chart (cash vs card). Live map: active rides (blue), available drivers (green), waiting riders (red) — click korle details. Pending actions section: unverified drivers, open disputes, overdue settlements. WebSocket diye 30 second e auto-refresh. Shob metric click korle detail page e jay.
+Database / Tech:
+Aggregation queries PostgreSQL e. Redis e frequently needed counts cache hoy (60 second TTL). WebSocket ba Server-Sent Events diye live update. Map: Google Maps JavaScript API.
+Feature 37:  Ride Monitoring   [MVP CORE]
+Ki kore:
+Shob rides er searchable, filterable list. Filters: status, date range, driver name/phone, rider name/phone, ride ID. Specific ride click korle: full details — rider info, driver info, route map (GPS points theke drawn), fare breakdown, payment status, timeline (booking → assigned → started → completed shob timestamp). Live rides e real-time driver location dekha jay. Admin emergency cancel korte parbe active ride e (reason mandatory). Refund issue korte parbe payment section theke. Admin notes add kora jay internal use er jonno.
+Feature 38:  User Management   [MVP CORE]
+Ki kore:
+Riders ebong drivers dujotai ek jaygay. Search by naam, phone, ID. Filter by role, status (active/blocked). User profile click korle: shob personal info, ride history (last 20), payment history, ratings received, complaints filed. Block button: reason mandatory (dropdown + custom), immediate effect — user login thakle next request e 401, new login block. Unblock option thake. Admin notes add kora jay profile e. Notification send option ache specific user ke.
+Feature 42:  Dispute Resolution   [MVP CORE]
+Ki kore:
+Payment ba ride niye rider ba driver report korte parle support ticket create hoy. Admin panel e 'Disputes' section e open disputes list dekhay — priority high marked. Specific dispute click korle: dui pokkher version, ride details, GPS trail map (route proof), payment record, communication history (chat log). Admin GPS trail automatically analyze kore route deviation check kore. Admin decision: resolve in favor of rider (refund issue) ba driver. Refund Stripe diye issue korte parbe directly. Dispute status track hoy: open → investigating → resolved. Fraud pattern detect hole (same driver/rider baar baar dispute) auto-flag hoy admin ke.
+Database tables:
+disputes (id UUID, ride_id FK, payment_id FK nullable, reported_by FK, reported_against FK, reason TEXT, evidence_urls TEXT[], status ENUM open/investigating/resolved/closed, resolution TEXT nullable, resolved_by FK nullable, refund_amount DECIMAL nullable, refund_issued BOOLEAN, created_at).
+Feature 43:  Notification Broadcast   [MVP CORE]
+Ki kore:
+Admin shob users ke ba specific group ke push notification pathate parbe. Target options: all riders, all drivers, specific zone (radius select on map), individual user. Message compose kore: title + body + optional deep link. Schedule option: ekhuni pathao ba future time e. Sent notifications er delivery rate dekhay (FCM delivery receipt). Use cases: new feature announcement, promo info, emergency alert, maintenance notice.
+Database tables:
+broadcast_notifications (id UUID, admin_id FK, target_type ENUM all_riders/all_drivers/zone/individual, target_data JSONB, title, body, deep_link nullable, scheduled_for TIMESTAMP nullable, sent_at nullable, total_sent INT, delivered_count INT, status ENUM draft/scheduled/sent).
+Feature 44:  Cash Settlement Management   [MVP CORE]
+Ki kore:
+Cash ride e driver full cash rakhe. End of day system calculate kore: driver koto cash collect korece, platform er 25% commission koto. Weekly (default) ba monthly settlement option. Driver app e 'Settlement Due: ৳850' dekhay. Driver bKash/bank transfer diye platform ke pathay, admin confirm kore. Overdue settlement (7 din er beshi) hole driver ke offline force kora hoy jotokhon settled na hoy. Trusted drivers (rating 4.7+, 6+ months, no issues) monthly credit system e eligible. Monthly earning statement auto-generate hoy — driver download korte parbe PDF hisebe. Tax compliance er jonno TDS certificate generate option ache.
+Database tables:
+driver_settlements (id UUID, driver_id FK, period_start DATE, period_end DATE, total_collected DECIMAL, platform_commission DECIMAL, driver_earning DECIMAL, settlement_status ENUM pending/paid/overdue, payment_method VARCHAR nullable, transaction_reference VARCHAR nullable, settled_at TIMESTAMP nullable, total_rides INT).
+
+
+
+
+
+
+________________
+
+
+Excluded Features — Phase 2 e Jabe
+Nicher shob features MVP theke deliberately bad dewa hoyeche. Kono feature permanently cancel na — shobgulo Phase 2 ba Phase 3 e implement hobe. Reason gulo clear kore deowa hoyeche jate client o developer dujone bujhte pare keno eta MVP e nei.
+
+
+
+
+Category 1: Rider Features theke Bad
+Feature 18: Ride History  (Rider Feature)
+Keno bad dewa hoyeche: Launch er prothom dine kono user er history thakbe na — feature ta empty dekhabe. Meaningful data accumulate hole (2-3 saptah por) add kore dile actual value thakbe. MVP te eta rakha mane unnecessary code ebong database query overhead.
+
+
+Category 2: Driver Features theke Bad
+Feature 30 (Full): Detailed Earnings Dashboard  (Driver Feature)
+Keno bad dewa hoyeche: Basic earnings (aaj koto trips, aaj koto taka) MVP te thakbe. Kintu detailed weekly/monthly breakdown, chart visualization, settlement history, projected earnings — eta data ছাড়া meaningless. Launch er 3-4 saptah por real data thakbe, takhon add kora beshi logical. MVP te shudhu simple earnings view.
+
+
+Category 3: Admin Features theke Bad
+Feature 39: Financial Reports (Detailed)  (Admin Feature)
+Keno bad dewa hoyeche: Admin dashboard e basic revenue numbers dekhabe — aajker total, platform commission, driver earnings. Kintu detailed Excel/CSV/PDF export, date range filters, top earners list, scheduled email reports — launch er prothom weeks e keu use korbe na. Data accumulate hole Phase 2 e add kora jabe. Admin manual hishab korte parbe initially.
+Feature 40: Surge Pricing Control  (Admin Feature)
+Keno bad dewa hoyeche: Launch e user ebong driver som kom thakbe — organic demand/supply imbalance naturally ashbe na. Surge toggle admin ke confuse korte pare false urgency diye. Fixed competitive fare diye shuru kora better strategy — user trust build hobe. Real traffic data pele Phase 2 e surge tune kore add kora jabe properly.
+Feature 41: Promo Code Management  (Admin Feature)
+Keno bad dewa hoyeche: Launch promotion manually handle kora jay — specific users ke direct discount dewa, word of mouth. Full promo engine (bulk codes, campaign tracking, expiry logic, usage limits, vehicle-specific discounts) complex infrastructure — launch e ROI nai. Phase 2 e user base thoiri hole promo system meaningful hobe.
+
+
+Category 4: Parcel Delivery — Shob 7 Features Bad
+Feature 45-51: Entire Parcel Delivery Module (7 features)  (Parcel Delivery)
+Keno bad dewa hoyeche: Parcel delivery ride-sharing er shonge completely alag business logic, alag driver workflow, alag user flow. Core ride-sharing stable ebong tested na hole parcel add kora risky — duita module er bug ekta oprokke affect korte pare. Ride-sharing profitably running hole Phase 2 e parcel module add kora natural expansion. Plus: parcel e additional compliance (fragile items, insurance, proof of delivery photos) ache jetar jonno alag preparation lagbe.
+
+
+
+
+
+
+MVP Feature Count Summary
+Rider: 17  |  Driver: 13  |  Admin: 9  |  Total MVP: 39
+Excluded (Phase 2+): 12 features  |  Parcel Module: 7 features
+Client Requirements: All 5 included in MVP ✓

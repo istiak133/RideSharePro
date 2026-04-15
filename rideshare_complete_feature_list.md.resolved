@@ -1,0 +1,885 @@
+# 🚀 RideShare AI Pro — Complete Feature List (47 Features)
+
+> **Platform:** On-demand ride-sharing & parcel delivery for Bangladesh  
+> **Stack:** React Native · Node.js/Express · PostgreSQL · Firebase · Redis · Google Maps APIs
+
+---
+
+## 📊 Summary Table
+
+| Category | Features | Count |
+|---|---|---|
+| 📱 Customer / Rider | Features 1–16 | **16** |
+| 🚗 Driver | Features 17–34 | **18** |
+| 📦 Parcel Delivery | Features 35–36 | **2** |
+| 🛠️ Admin Panel | Features 37–46 | **10** |
+| 🌐 Web Platform | Feature 43 | **1** |
+| 💳 Payment Gateway | Features 44–46 | **1** (bKash specific) |
+| 🔔 Notifications | Feature 47 | **1** |
+| | **TOTAL** | **47** |
+
+---
+
+## 📱 CATEGORY 1: CUSTOMER / RIDER FEATURES (16 Features)
+
+---
+
+### 🔹 Feature 1: Phone-Based Registration
+
+**Description:** User phone number দিয়ে register করবে। কোনো password লাগবে না। OTP verify করে automatic login হবে।
+
+**Workflow:**
+1. User app open করে → Phone number entry screen আসে
+2. 11-digit phone number enter করে (must start with `01`)
+3. Role select করে: **Rider** or **Driver**
+4. "Send OTP" tap করলে system SMS-এ **6-digit OTP** পাঠায়
+5. User OTP enter করে → System verify করে
+6. ✅ Match হলে → Account create → JWT token generate → Auto-login
+7. ❌ Wrong হলে → 3 attempts পর temporary block
+
+**Key Requirements:**
+- Phone: exactly 11 digits, starts with `01`, must be unique
+- OTP valid for **5 minutes**, max **3 wrong attempts**
+- Rate limit: **5 OTP requests/hour/phone**, **50/hour/IP**
+- OTP hashed with `bcrypt` before storing
+
+**Tech Stack:** Twilio (SMS) · Redis (OTP storage, 5min TTL) · bcrypt (hashing) · JWT (session) · PostgreSQL (`users` table)
+
+---
+
+### 🔹 Feature 2: Profile Management
+
+**Description:** User তার personal information add/edit করবে। Rider এবং driver আলাদা field fill করবে।
+
+**Workflow:**
+1. Registration পর "Complete Your Profile" screen আসে
+2. **Mandatory fields** fill করবে: Full name, Profile photo, Date of birth
+3. **Optional fields:** Email, Emergency contact (name + phone), Language preference
+4. Photo upload → Client-side compress (5MB → 500KB) → Cloud storage এ save
+5. System validate করে (age 18+, photo format, name ≥ 3 chars)
+6. ✅ Profile complete → Rider can start booking rides
+7. For drivers → Status changes to **"Pending Verification"**
+
+**For Drivers (Additional Mandatory):**
+- NID card photos (front + back)
+- Driving license photo
+- Vehicle type, model, registration number, vehicle photo
+- Bank account details (for payouts)
+
+**Tech Stack:** Supabase Storage / AWS S3 (photos) · Sharp library (image compression) · PostgreSQL (`user_profiles`, `driver_documents`, `driver_vehicles`, `bank_accounts` tables)
+
+---
+
+### 🔹 Feature 3: Google Maps Integration & Location Services
+
+**Description:** Map display করবে, current location detect করবে, pickup/drop location select করতে পারবে, route দেখাবে।
+
+**Workflow:**
+1. App open → Location permission request → GPS activate
+2. Map display হয় with **blue dot** at current location
+3. **Pickup selection** — 3 ways:
+   - Current location use করা (default)
+   - Map drag করে manually select
+   - Search bar এ location search (Google Places Autocomplete)
+4. Pickup confirm → "Where to?" screen আসে
+5. **Drop location select** — same 3 ways
+6. Both selected → **Route draw** হয় (blue polyline) with distance & ETA
+7. Recent locations (last 5) ও Saved places (Home, Work) show করে
+
+**Key Requirements:**
+- GPS accuracy: minimum 50 meters
+- Search debounce: 300ms delay
+- Max 5 autocomplete suggestions
+- Cache recent searches locally
+
+**Tech Stack:** Google Maps SDK · Google Places API · Google Directions API · Google Geocoding API · `react-native-geolocation-service`
+
+---
+
+### 🔹 Feature 4: Fare Calculation
+
+**Description:** Pickup ও drop location select করার পর booking confirm এর আগে automatic fare estimate show করবে।
+
+**Fare Formula:**
+```
+Base Fare = Base + (Distance × Distance_Rate) + (Extra_Time × Time_Rate)
+Final Fare = Base Fare × Surge_Multiplier
+Final Fare = Round to nearest ৳5
+If Final < Minimum → Use Minimum
+```
+
+**Fare Table:**
+
+| Vehicle | Base Fare | Per km | Per min | Minimum |
+|---|---|---|---|---|
+| 🏍️ Bike | ৳40 | ৳15-20 | ৳2 | ৳60 |
+| 🛺 CNG | ৳60 | ৳25 | ৳2 | ৳80 |
+| 🚗 Car | ৳80 | ৳30 | ৳2 | ৳100 |
+
+**Surge Pricing (Dynamic):**
+| Demand/Supply Ratio | Multiplier |
+|---|---|
+| < 0.5 (Low) | 1.0x |
+| 0.5–1.0 (Normal) | 1.2x |
+| 1.0–2.0 (Moderate) | 1.5x |
+| 2.0–3.0 (High) | 2.0x |
+| > 3.0 (Peak) | 3.0x (capped) |
+
+**Additional:** Morning rush (8–10 AM) & evening rush (5–8 PM) → extra ×1.2 multiplier
+
+**Workflow:**
+1. User selects pickup + drop → System calls Google Directions API → Gets distance & time
+2. Fetches fare rules from DB → Gets surge from Redis cache
+3. Calculates fare → Rounds → Shows breakdown to user
+4. User can switch vehicle type → Instant re-calculate
+5. Fare valid for **5 minutes**
+
+**Tech Stack:** Google Directions API · PostgreSQL (`fare_rules` table) · Redis (surge cache, 60s TTL)
+
+---
+
+### 🔹 Feature 5: Ride Booking
+
+**Description:** Rider fare দেখে "Confirm Booking" tap করলে database এ ride create হবে এবং nearby drivers খুঁজতে শুরু করবে।
+
+**Workflow:**
+1. User reviews fare estimate → Taps "Confirm Booking"
+2. System creates ride record in PostgreSQL with status `searching_driver`
+3. Generates **4-digit pickup OTP** (hashed with bcrypt) → Shows to rider
+4. Generates unique **ride ID** (UUID)
+5. Stores: pickup/drop coordinates, addresses, estimated fare, vehicle type, rider ID
+6. Shows "Searching for driver..." screen
+7. Triggers **Find Nearby Drivers** (Feature 7)
+
+**Tech Stack:** PostgreSQL (`rides` table) · bcrypt (OTP hash) · UUID generation
+
+---
+
+### 🔹 Feature 6: Driver Search Status
+
+**Description:** "Searching for driver..." animation সহ status দেখানো যখন system nearby drivers খুঁজছে।
+
+**Workflow:**
+1. Animated loading screen shows with "Finding you a ride..." message
+2. Behind the scenes: System querying drivers within **5km radius**
+3. If no driver found in 60s → Expand radius to **10km**
+4. If still none → Show "No drivers available, try again"
+5. If driver accepts → Instantly move to Feature 7 (Driver Found)
+6. **Cancel button** available throughout
+
+**Tech Stack:** Lottie/CSS animations · WebSocket (instant update when found) · Backend async process
+
+---
+
+### 🔹 Feature 7: Driver Found Notification
+
+**Description:** Driver accept করলে instant notification আসবে driver এর photo, name, rating, vehicle details সহ।
+
+**Workflow:**
+1. Driver accepts → Rider's screen instantly updates via WebSocket
+2. Shows: Driver photo, name, rating (⭐ 4.8), total rides, vehicle details
+3. Shows pickup code: **"Your pickup code: 5847"**
+4. Shows: **distance** from driver + **ETA** ("Arriving in 8 minutes")
+5. Phone vibrates + notification sound
+6. Call & Chat buttons appear
+7. If app closed → Push notification via FCM
+
+**Tech Stack:** Socket.io / Firebase Realtime · FCM (push) · Google Directions API (ETA calc)
+
+---
+
+### 🔹 Feature 8: Real-Time Driver Tracking
+
+**Description:** Rider map এ driver এর live location দেখবে, every 5 seconds update হবে।
+
+**Workflow:**
+1. Driver accepts ride → Driver app starts GPS tracking
+2. **Every 5 seconds:** Gets GPS → Sends to Firebase Realtime Database
+   ```
+   driver_locations/{driver_id}: { lat, lng, heading, speed, timestamp }
+   ```
+3. Rider app **subscribes** to driver's location feed (push, not polling)
+4. Map updates: Car icon moves smoothly, rotates based on heading
+5. Distance + ETA continuously recalculate
+6. "Driver is 1.5 km away, arriving in 5 minutes"
+7. "Driver has arrived!" when within 100m
+
+**Tech Stack:** Firebase Realtime Database · Google Maps SDK (markers, animation) · Device GPS (`geolocator`)
+
+---
+
+### 🔹 Feature 9: ETA Updates
+
+**Description:** Driver এর live location থেকে continuously "Arriving in X minutes" calculate করে show করবে।
+
+**Workflow:**
+1. Every **30 seconds:** Call Google Directions API from driver location → pickup
+2. Between API calls: Client-side estimation based on speed
+3. ETA dynamically adjusts for traffic: "8 min → 6 min → 7 min (traffic) → 3 min"
+4. Cache last API result (reduce costs)
+5. Final: "Driver has arrived!"
+
+**Tech Stack:** Google Directions API (duration_in_traffic) · Client-side interpolation · Redis (API result cache)
+
+---
+
+### 🔹 Feature 10: Pickup OTP Verification
+
+**Description:** Rider কে 4-digit code show হবে যা driver কে বলতে হবে pickup verify করতে। Wrong passenger prevention।
+
+**Workflow:**
+1. When driver assigned → System generates **4-digit OTP** (e.g., 4826)
+2. Rider sees: **"Your pickup code: 4826"** (big and clear)
+3. Driver arrives → Taps "I've Arrived"
+4. Driver asks rider for code → Rider shows/tells code
+5. Driver enters code → Backend verifies against hashed value
+6. ✅ Correct → "Start Ride" button unlocks
+7. ❌ Wrong → Error, retry (**max 3 attempts** → Contact support)
+
+**Security:** OTP unique per ride · Hashed in DB · Prevents ride hijacking · Proof of pickup
+
+**Tech Stack:** Random 4-digit generator · bcrypt (hash) · PostgreSQL (`rides.pickup_otp`)
+
+---
+
+### 🔹 Feature 11: Ride Progress Tracking
+
+**Description:** Ride start হওয়ার পর rider map এ current position, route, remaining distance, ETA real-time দেখবে।
+
+**Workflow:**
+1. Ride started → Map shows: current position on route, blue polyline, destination pin
+2. Every 5 seconds: GPS point recorded in `ride_route_points` table
+3. Remaining distance + ETA decreases continuously
+4. User sees: "5.2 km remaining • 14 minutes left • Est. ৳320"
+5. Route points stored for: fare verification, dispute resolution, analytics
+
+**Tech Stack:** Firebase (driver location) · PostgreSQL (`ride_route_points`) · Google Maps (polyline)
+
+---
+
+### 🔹 Feature 12: In-App Chat
+
+**Description:** Rider ও driver ride চলাকালীন text message করতে পারবে। Real-time delivery, no phone sharing।
+
+**Workflow:**
+1. Chat button appears after driver assigned
+2. Both connected to WebSocket room: `ride-{ride_id}`
+3. User types message → Sends via Socket.io → Instant delivery to other party
+4. Features: Read receipts (✓✓), timestamps, auto-scroll
+5. If app in background → FCM push notification
+6. Chat only available **during active ride** (privacy)
+
+**Tech Stack:** Socket.io (WebSocket) · Node.js server · Optional MongoDB (chat history) · FCM (background)
+
+---
+
+### 🔹 Feature 13: In-App Voice Call
+
+**Description:** Internet দিয়ে free call করা যাবে। Phone number share হবে না (privacy)।
+
+**Workflow:**
+1. Rider taps 📞 Call → Call screen opens
+2. Socket.io sends "offer" → Driver receives → Sends "answer"
+3. WebRTC peer-to-peer connection established
+4. Voice streams directly between devices (not through server)
+5. Shows call duration, mute, speaker options
+6. After call → Returns to tracking screen
+
+**Tech Stack:** WebRTC · Socket.io (signaling) · STUN/TURN servers (NAT traversal) · `flutter_webrtc` package
+
+---
+
+### 🔹 Feature 14: Cash Payment
+
+**Description:** Ride শেষে rider driver কে direct cash pay করবে, driver confirm করবে।
+
+**Workflow:**
+1. Ride ends → System calculates **final fare** from actual GPS data
+2. Both see: "Final Fare: ৳340"
+3. Rider pays driver cash
+4. Driver taps "Cash Received" → System records payment
+5. Payment record: `{ ride_id, amount, method: 'cash', status: 'completed' }`
+6. Earnings split: **Driver 75% (৳255)** / **Platform 25% (৳85)**
+7. Settlement: Platform invoices driver weekly for commission
+
+**Tech Stack:** PostgreSQL (`payments` table) · Simple API call (record payment)
+
+---
+
+### 🔹 Feature 15: Card Payment (Stripe)
+
+**Description:** International card add করে secure one-tap payment করতে পারবে।
+
+**Workflow:**
+1. **First time:** User adds card → Stripe tokenizes (never stores actual number) → Saves token
+2. Shows: "Visa ending in 4242"
+3. At ride end → "Pay ৳340 with Visa •••• 4242" → Tap "Pay Now"
+4. Backend calls Stripe API → Charge card
+5. ✅ Success → Payment complete, receipt generated
+6. ❌ Fail → Error message, fallback to cash option
+
+**Security:** PCI DSS compliant · Stripe handles all card data · Encrypted transmission · 3D Secure support
+
+**Tech Stack:** Stripe SDK · PostgreSQL (`payment_methods` table) · BDT → USD auto-conversion
+
+---
+
+### 🔹 Feature 16: Schedule-a-Ride
+
+**Description:** Future date/time এর জন্য advance booking করা। 1 hour to 7 days ahead।
+
+**Workflow:**
+1. User selects date & time → Pickup & drop locations
+2. System validates: min 1 hour ahead, max 7 days
+3. Shows fare estimate (same calculation)
+4. Confirms → Ride created with status `scheduled`
+5. **30 min before:** Notification reminder
+6. **15 min before:** System activates → Changes to `searching_driver` → Finds driver
+7. Cancellation: Free anytime before driver assigned
+
+**Tech Stack:** Cron jobs / scheduled tasks · PostgreSQL (`scheduled_time`, `is_scheduled` fields) · FCM (reminders)
+
+---
+
+## 🚗 CATEGORY 2: DRIVER FEATURES (18 Features)
+
+---
+
+### 🔹 Feature 17: Driver Registration
+
+**Description:** Driver phone দিয়ে register করবে + role "Driver" select করবে।
+
+**Workflow:** Same as Feature 1 but with `role = 'driver'`. After registration, status is `pending` — cannot go online until documents verified. Redirects to Document Upload screen.
+
+**Tech Stack:** Same as Feature 1
+
+---
+
+### 🔹 Feature 18: Document Upload
+
+**Description:** Driver NID, license, vehicle details, bank account upload করবে verification এর জন্য।
+
+**Required Documents:**
+1. **NID Card** — Front & back photos
+2. **Driving License** — Clear photo, valid (not expired)
+3. **Vehicle Info** — Type, model, registration number, year, photo
+4. **Bank Account** — Holder name, account number (encrypted), bank, branch, routing number
+
+**Workflow:**
+1. Checklist screen shows all required uploads
+2. Each upload: Take Photo / Choose Gallery → Validate (clear? <5MB?) → Compress → Upload
+3. Vehicle details form: Type selection (Bike/CNG/Car), model, registration
+4. Bank details form (account number encrypted at rest)
+5. "Submit for Verification" → Status: `pending`
+6. Confirmation: "Documents under review, expected 24-48 hours"
+
+**Tech Stack:** AWS S3 / Supabase Storage · Image compression · PostgreSQL (3 tables: `driver_documents`, `driver_vehicles`, `bank_accounts`) · Encryption (bank data)
+
+---
+
+### 🔹 Feature 19: Pending Verification Status
+
+**Description:** Document submit এর পর driver "Pending Verification" status দেখবে। Ride accept করতে পারবে না verification না হওয়া পর্যন্ত।
+
+**Restrictions while pending:**
+- ❌ Cannot go online
+- ❌ Cannot accept rides
+- ❌ Cannot access driver dashboard
+- ✅ Can view profile, edit basic info, contact support
+
+**After admin decision:**
+- ✅ **Approved:** Status → `active`, can go online, full features unlocked
+- ❌ **Rejected:** Notification with reason, can re-upload and resubmit
+
+**Tech Stack:** FCM (approval/rejection notification) · Conditional UI rendering
+
+---
+
+### 🔹 Feature 20: Go Online/Offline Toggle
+
+**Description:** Driver manually control করবে কখন ride requests receive করবে।
+
+**Workflow:**
+1. Driver taps toggle → System checks: GPS enabled? Internet? Verification approved?
+2. **Going Online:**
+   - Location tracking starts (every 5 seconds)
+   - Added to Redis geospatial index (`GEOADD`)
+   - Firebase status updated
+   - Now visible to nearby riders
+3. **Going Offline:**
+   - Location tracking stops
+   - Removed from Redis `GEOADD`
+   - No ride requests received
+4. **Restriction:** Cannot go offline during active ride
+
+**Tech Stack:** REST API (status update) · Redis `GEOADD` (geospatial index) · Firebase (real-time status) · Device GPS
+
+---
+
+### 🔹 Feature 21: Ride Request Notification
+
+**Description:** Nearby ride request পেলে push notification, 30-second timer সহ।
+
+**Workflow:**
+1. System finds driver via `GEORADIUS` (within radius, online, vehicle matches)
+2. FCM push + in-app WebSocket notification
+3. Shows: Pickup, drop, fare, distance to pickup, 30-second countdown timer
+4. **Loud sound + strong vibration** (driver may be driving)
+5. If no response in 30s → Auto-decline → Next driver
+6. Multiple requests possible → First-come-first-serve
+
+**Notification Content:** Title, pickup/drop addresses, estimated fare, distance to pickup, ETA to pickup
+
+**Tech Stack:** FCM (high priority, heads-up display) · Socket.io (in-app) · Custom notification sound
+
+---
+
+### 🔹 Feature 22: Accept/Decline Ride
+
+**Description:** Driver ride accept বা decline করতে পারবে। Race condition handling for simultaneous accepts।
+
+**Accept Flow:**
+1. Driver taps "Accept" → Backend POST request
+2. **Database transaction with row-level lock:**
+   ```sql
+   SELECT * FROM rides WHERE id = 'ride-123' AND driver_id IS NULL FOR UPDATE;
+   UPDATE rides SET driver_id = 'driver-uuid', status = 'driver_assigned';
+   ```
+3. First lock wins → Others get "Already accepted"
+4. Notify rider: "Driver found!" · Notify other drivers: "Ride taken"
+
+**Decline Flow:**
+1. Driver taps "Decline" → Removed from queue
+2. Next driver gets notification
+3. Decline tracked in driver stats (`acceptance_rate`)
+4. Low rate (<70%) → Fewer requests, no bonuses, warnings
+
+**Tech Stack:** PostgreSQL transactions (`SELECT FOR UPDATE`) · WebSocket broadcast · FCM
+
+---
+
+### 🔹 Feature 23: Navigate to Pickup
+
+**Description:** Accept করার পর Google Maps navigation follow করে pickup location এ যাওয়া।
+
+**Features:** Turn-by-turn voice directions · Real-time traffic · Alternative routes · Speed limit · Auto-rerouting
+
+**Workflow:**
+1. App opens navigation → Shows route, blue line, traffic overlay
+2. Voice: "In 200m, turn left onto Road 27"
+3. Ahmed (rider) simultaneously sees driver approaching on map
+4. Within 100m → "You're near the pickup!" → "I've Arrived" button
+
+**Options:** In-app navigation (Google Maps SDK) or external Google Maps app (deep link)
+
+**Tech Stack:** Google Maps SDK · Google Directions API · Text-to-Speech (TTS)
+
+---
+
+### 🔹 Feature 24: Pickup OTP Verification (Driver Side)
+
+**Description:** Driver pickup location এ rider কাছ থেকে 4-digit code নিবে, app এ enter করবে, verify হলে start করতে পারবে।
+
+Same as Feature 10 but from driver's perspective. Includes edge cases: wrong person tries, code forgotten, phone battery dead.
+
+---
+
+### 🔹 Feature 25: Start Ride
+
+**Description:** OTP verify এর পর driver "Start Ride" tap করবে, ride status "started" হবে, GPS tracking activate হবে।
+
+**What happens:**
+- Status: `arrived → started`
+- `started_at` timestamp recorded
+- GPS route recording begins (every 5 seconds → `ride_route_points` table)
+- Timer starts for fare calculation
+- Notification to rider: "Your ride has started"
+- Rider can no longer cancel freely (fee applies)
+
+**Tech Stack:** PostgreSQL (status update, timestamp) · GPS tracking (5s interval) · WebSocket (status broadcast)
+
+---
+
+### 🔹 Feature 26: Navigation During Ride
+
+**Description:** Google Maps follow করে destination এ যাওয়া। Route GPS points store হবে database এ।
+
+**Simultaneously happening:**
+1. Driver follows turn-by-turn navigation
+2. GPS records every 5 seconds: `{ ride_id, lat, lng, speed, heading, timestamp }`
+3. Rider sees live tracking on map
+4. Route stored for: fare calculation, dispute resolution, analytics, legal proof
+
+**Storage:** 1 ride ≈ 200-300 GPS points ≈ 4KB · 10,000 rides/month ≈ 40MB (manageable)
+
+---
+
+### 🔹 Feature 27: End Ride
+
+**Description:** Destination এ driver "End Ride" tap করবে, actual distance/time calculate হবে, final fare compute হবে।
+
+**Workflow:**
+1. Driver reaches destination → Taps "End Ride"
+2. System calculates **actual distance** from GPS points (Haversine formula)
+3. Calculates **actual time** (`completed_at - started_at`)
+4. Final fare = Base + (actual_distance × rate) + (actual_time × rate) × **surge from booking time**
+5. Round to nearest ৳5
+6. Both see: final fare, distance, time
+7. Triggers payment flow (Feature 14/15)
+
+---
+
+### 🔹 Feature 28: Collect Payment
+
+**Description:** Driver cash/card collect করে "Payment Received" confirm করা।
+
+Same flow as Feature 14 from driver's perspective. Driver sees earnings split (75%/25%). Settlement occurs weekly.
+
+---
+
+### 🔹 Feature 29: Rate Rider
+
+**Description:** Ride শেষে driver rider কে rate করবে 1-5 stars. Future matching এ rating consider হবে।
+
+**Includes:** Star rating (1-5) · Optional comment · Both parties rate each other · Ratings visible on profiles · Low ratings trigger warnings
+
+---
+
+### 🔹 Feature 30: Earnings Dashboard
+
+**Description:** Driver daily/weekly/monthly earnings দেখবে with detailed breakdown।
+
+**Shows:**
+- **Today:** Total earned, rides count, online hours, avg per ride
+- **This Week:** Total, rides, % change vs last week
+- **This Month:** Total, rides, projected earnings
+- **Breakdown:** Cash collected, platform fee (25%), net earnings, pending settlement
+- **Ride History:** Individual ride details with fare breakdown
+- **Charts:** Earnings graph, peak hours, hot zones
+- Settlement: Weekly bank transfer
+
+**Tech Stack:** SQL aggregation queries · Chart.js / Recharts · PDF generation (receipts)
+
+---
+
+### 🔹 Feature 31: Performance Metrics
+
+**Description:** Acceptance rate, completion rate, average rating, online hours statistics দেখা।
+
+**Metrics tracked:**
+- **Rating:** Overall ⭐ 4.87/5.0, star distribution (5★: 88%, 4★: 10%, etc.)
+- **Acceptance Rate:** 92% (Accepted 245 / Received 267)
+- **Completion Rate:** 98% (Completed 245 / Started 250)
+- **Online Hours:** Weekly total, daily average, peak performance times
+- **Quality Badges:** Top Rated Driver, Fast Pickup, Milestone badges
+
+**Impact:** 4.8+ → Priority assignments & bonuses · 4.0–4.5 → Warning · <4.0 → Suspension
+
+**Tech Stack:** Redis (cached stats) · PostgreSQL (aggregation) · Charts & progress bars
+
+---
+
+### 🔹 Feature 32: Driver Heatmap
+
+**Description:** Map এ demand zones দেখা — কোথায় বেশি rides হচ্ছে real-time।
+
+**Color coding:**
+- 🔴 Red: Very High demand (2.0x surge)
+- 🟠 Orange: High (1.5x)
+- 🟡 Yellow: Medium (1.2x)
+- 🟢 Green: Normal (1.0x)
+- ⚪ Gray: Low demand
+
+**Updates every 2 minutes:** Counts active requests & available drivers per zone → Calculates ratio → Broadcasts to all drivers
+
+**Tech Stack:** WebSocket broadcast · Redis (zone stats) · Google Maps with color overlays
+
+---
+
+### 🔹 Feature 33: Parcel Pickup (Driver)
+
+**Description:** Sender থেকে pickup code verify করে parcel নেওয়া, photo proof তোলা।
+
+**Workflow:**
+1. Driver gets parcel delivery notification → Accepts
+2. Navigates to sender → Arrives
+3. Asks for **4-digit pickup code** → Verifies in app
+4. ✅ Verified → Takes **photo of parcel** (condition proof)
+5. Reads special instructions ("Fragile: Handle with care")
+6. Confirms pickup → Status: `picked_up`
+7. Receiver's tracking page updates → Live tracking starts
+
+**Tech Stack:** OTP verification (same as ride) · Image upload (S3) · Firebase (tracking)
+
+---
+
+### 🔹 Feature 34: Parcel Delivery (Driver)
+
+**Description:** Receiver কাছে parcel পৌঁছে delivery code verify করবে, photo + signature নিবে।
+
+**Workflow:**
+1. Driver reaches receiver → Calls: "Your parcel is here"
+2. Asks for **4-digit delivery code** → Verifies in app
+3. ✅ Verified → Takes **delivery photo** + Gets **digital signature** on phone screen
+4. Collects payment (if receiver pays)
+5. Confirms delivery → Status: `delivered`
+6. Sender gets SMS: "Your parcel has been delivered successfully"
+7. Everyone sees completion screen with receipt
+
+**Tech Stack:** Same as pickup + Digital signature capture · Multi-party notifications (SMS + email)
+
+---
+
+## 📦 CATEGORY 3: PARCEL DELIVERY FEATURES (2 Features)
+
+---
+
+### 🔹 Feature 35: Parcel Booking
+
+**Description:** Customer parcel send করার জন্য step-by-step booking করবে।
+
+**Multi-step Form:**
+1. **Sender Details:** Name, phone, pickup address (auto-filled from profile)
+2. **Receiver Details:** Name, phone, **email** (required for tracking link), delivery address
+3. **Parcel Details:** Type (Documents/Food/Electronics/Clothing/Other), weight (kg), declared value (৳), fragile flag, special instructions, optional photo
+4. **Payment Mode:**
+   - Mode 1: **Receiver pays delivery fee** (90% of cases — online shopping)
+   - Mode 2: **Full COD** — Driver collects item price + delivery fee
+   - Mode 3: **Sender pays now** — Free delivery for receiver (gifting)
+
+**Delivery Fee Formula:** Base fare (৳60) + (Distance × ৳15/km) + Weight surcharge + Fragile fee (৳20)
+
+**After booking:**
+- Generates 2 separate OTPs: **Pickup code** (to sender) + **Delivery code** (to receiver)
+- Generates **public tracking link** (UUID token)
+- Sends email to receiver with tracking link + delivery code
+- Sends SMS to sender with pickup code
+- Starts finding nearby drivers
+
+**Tech Stack:** Multi-step form wizard · PostgreSQL (`parcels` table) · SendGrid / AWS SES (email) · Twilio (SMS) · UUID tracking token
+
+---
+
+### 🔹 Feature 36: Parcel Tracking (Public)
+
+**Description:** Receiver browser এ tracking link open করে live driver location দেখতে পারবে — **No app needed, no login needed!**
+
+**URL:** `https://rideshare.com/track/{tracking_token}`
+
+**What receiver sees:**
+1. **Status timeline:** Booked → Driver Assigned → Picked Up → In Transit → Delivered
+2. **Driver info:** Name, photo, rating, masked phone
+3. **Live map** with moving driver icon + route line + ETA
+4. **Delivery code** reminder
+5. Updates automatically (no refresh needed) via Firebase
+
+**Privacy protections:** Sender name partial · Driver phone masked · Read-only · No sensitive data · Link expires **1 hour after delivery**
+
+**Tech Stack:** HTML/CSS/JS or Next.js static page · Google Maps JS API · Firebase Realtime Database · Public API endpoint (no auth, UUID validation)
+
+---
+
+## 🛠️ CATEGORY 4: ADMIN FEATURES (10 Features)
+
+---
+
+### 🔹 Feature 37: Driver Document Verification
+
+**Description:** Admin pending drivers list দেখবে, documents manually check করবে, approve/reject করবে reason সহ।
+
+**Admin Panel shows:**
+- Pending verifications list (sortable, searchable)
+- Document viewer with **zoom & download**
+- Verification checklist (NID clear? License valid? Photo matches? Vehicle condition?)
+
+**Actions:**
+- ✅ **Approve:** Status → `active`, driver can go online, push + email + SMS notification
+- ❌ **Reject:** Must provide reason (dropdown + text), specify which documents to resubmit, notification sent
+
+**Audit trail:** `verification_logs` table — who verified, when, action, reason
+
+**Tech Stack:** React.js admin panel · Lightbox/zoom viewer · RBAC (role-based access) · FCM + Email + SMS (notifications) · PostgreSQL (audit logs)
+
+---
+
+### 🔹 Feature 38: Admin Dashboard
+
+**Description:** Web panel এ total rides, revenue, active users, charts, live map দেখা একসাথে।
+
+**Dashboard Widgets:**
+- **KPI Cards:** Rides today (234), Revenue (৳58,450), Users (892), Drivers online (32)
+- **Live Metrics:** Active rides, waiting riders, available drivers, avg wait time
+- **Charts:** Rides over 7 days (line), Revenue breakdown (pie), Hourly distribution (bar)
+- **Live Map:** Active rides (🔵), available drivers (🟢), waiting riders (🔴)
+- **Pending Actions:** Driver verifications, dispute reports, overdue settlements
+- **Activity Feed:** Real-time log of recent events
+
+**Updates:** WebSocket → Stats refresh every 30s · Map every 5s · Activity feed real-time
+
+**Tech Stack:** React.js · Chart.js / Recharts · Google Maps JS API · Socket.io (WebSocket) · Redis (cache, 30s TTL) · SQL aggregation queries
+
+---
+
+### 🔹 Feature 39: Ride Monitoring
+
+**Description:** All rides filter করে দেখা, specific ride details + live tracking করা, emergency cancel করা।
+
+**Filters:** Status · Date range · Driver/Rider · Payment method · Search by ride ID, phone, location
+
+**Ride Details View:** Full info — rider/driver details, route map with GPS trail, fare breakdown, payment info, complete timeline, ratings & feedback
+
+**Admin Actions:** Live tracking (active rides) · Emergency cancel (with reason + refund options) · Contact rider/driver · Issue refund · Add admin notes · Bulk export (CSV/Excel)
+
+**Tech Stack:** React data table · Complex SQL with JOINs · WebSocket (active rides) · Google Maps (route replay) · Full-text search (PostgreSQL)
+
+---
+
+### 🔹 Feature 40: User Management
+
+**Description:** All users search করে details দেখা, block/unblock করা, history access করা।
+
+**User List:** Search by name/phone/ID · Filter by role/status · Sort by join date, rating, rides
+
+**User Details:** Profile info · Ride history · Payment history · Ratings · Documents (if driver) · Activity logs
+
+**Actions:** Block/unblock (with reason) · View histories · Add admin notes · Send notification
+
+**Blocking Reasons:** Multiple complaints · Consistently low rating · Fraudulent activity · Inappropriate behavior · Payment issues
+
+**Tech Stack:** CRUD on `users` table · `users.status = 'blocked'` → Can't book/accept rides
+
+---
+
+### 🔹 Feature 41: Financial Reports
+
+**Description:** Daily/weekly/monthly revenue reports দেখবে, commission breakdown, driver payouts list, Excel export করবে।
+
+**Report Types:** Daily/weekly/monthly revenue · Driver payouts (pending + paid) · Payment method breakdown · Commission earned · Refunds · Top earners · Revenue by vehicle type
+
+**Data:** Total rides · Total fare · Platform commission (25%) · Driver earnings (75%) · Cash vs digital · Avg fare · Revenue growth
+
+**Export:** Excel (.xlsx) · CSV · PDF · Email report · Scheduled automated reports
+
+**Tech Stack:** SQL aggregation queries · `xlsx` / `csv-writer` library · Cron jobs (scheduled reports)
+
+---
+
+### 🔹 Feature 42: Role-Based Access Control (RBAC)
+
+**Description:** Different admin roles create করা specific permissions সহ।
+
+**Roles:**
+| Role | Permissions |
+|---|---|
+| **Super Admin** | All permissions, create/delete admins, full access |
+| **Verifier** | Verify drivers, view documents only |
+| **Support** | User management, ride monitoring, dispute handling |
+| **Finance** | Financial reports, payouts, settlements |
+| **Operations** | Ride monitoring, system health |
+
+**Tech Stack:** PostgreSQL (`admin_users` table with `role` and `permissions` JSON) · Middleware (permission checks)
+
+---
+
+### 🔹 Feature 43: Fleet Management Approval
+
+**Description:** Fleet owners verify করা, fleet details review করা, approve/reject করা।
+
+Admin verifies fleet owner's company registration, trade license, vehicle ownership proof. Approves fleet → Owner can add multiple drivers under fleet.
+
+---
+
+### 🔹 Feature 44: Ride Bidding Configuration
+
+**Description:** নির্দিষ্ট শহরের জন্য bidding module enable/disable করা, rules set করা।
+
+Admin can enable a rider-driver bidding system per city, set min/max bid ranges, and configure bidding rules.
+
+---
+
+### 🔹 Feature 45: System Monitoring
+
+**Description:** Server health, API performance, error logs monitor করা real-time।
+
+Monitors: Server uptime, API response times, error rates, database performance, active connections.
+
+---
+
+## 🌐 CATEGORY 5: WEB PLATFORM (1 Feature)
+
+---
+
+### 🔹 Feature 46 (previously 43 in alternate numbering): Web Booking Portal
+
+**Description:** Desktop/laptop browser থেকে responsive web interface দিয়ে ride booking করা।
+
+Full ride booking flow available on web — same as mobile but optimized for desktop. Responsive design.
+
+---
+
+## 💳 CATEGORY 6: PAYMENT GATEWAY (1 Feature)
+
+---
+
+### 🔹 Feature 46: bKash Payment Integration
+
+**Description:** বিকাশ tokenized checkout API integration করে secure mobile payment enable করা। (Bangladesh-specific)
+
+**Workflow:**
+1. **First time:** Opens bKash authorization page → Enters bKash number + PIN → Authorizes app → System saves agreement token
+2. **Subsequent times:** Ride ends → Confirms payment → Charges via saved token (PIN only) → Payment completes in **10 seconds**
+
+**Fee:** 1.85% charged by bKash per transaction
+
+**Prerequisites:** Trade license · bKash merchant account
+
+**Tech Stack:** bKash Tokenized Checkout API · PostgreSQL (`bkash_tokens` table: user_id, agreement_id, masked account, expiry)
+
+---
+
+## 🔔 CATEGORY 7: NOTIFICATIONS (1 Feature)
+
+---
+
+### 🔹 Feature 47: FCM Push Notifications
+
+**Description:** All events এ Firebase Cloud Messaging দিয়ে real-time push notifications পাঠানো।
+
+**Notification Types:**
+
+| For Riders | For Drivers |
+|---|---|
+| Driver accepted your ride | New ride request |
+| Driver arriving in 2 minutes | Rider cancelled |
+| Driver has arrived | Payment received |
+| Ride has started | Daily earnings summary |
+| Ride completed | Weekly payout processed |
+| Payment successful | Document verification decision |
+| New promo code available | — |
+
+**Features:** Push to phone even if app closed · Sound + vibration · Tap to open relevant screen · Notification history · Settings to enable/disable types
+
+**Tech Stack:** Firebase Cloud Messaging (FCM) · PostgreSQL (`fcm_tokens` table) · Node.js backend (trigger service)
+
+---
+
+## 📋 MVP BREAKDOWN
+
+> [!IMPORTANT]
+> The MVP consists of **33 features** that create a fully functional ride-sharing system.
+
+### MVP Phase 1 (8-10 weeks) — Core Ride-Sharing
+| Module | Features | Count |
+|---|---|---|
+| Rider | 1–15 | 15 |
+| Driver | 17–28 | 12 |
+| Admin | 37–40 | 4 |
+| Payment | bKash (46) | 1 |
+| Notifications | FCM (47) | 1 |
+| **Total** | | **33** |
+
+### Phase 2 (3-4 weeks) — Enhancements
+Features 16 (Schedule), 29-36 (Performance, Heatmap, Parcel, Fleet), 43 (Web Portal)
+
+### Phase 3 (2-3 weeks) — Advanced
+Features 41-44 (RBAC, Fleet Approval, Bidding, System Monitoring)

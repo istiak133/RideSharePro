@@ -1,0 +1,306 @@
+erDiagram
+    admin_users {
+        uuid id PK
+        varchar email UK
+        varchar password_hash
+        varchar role
+        boolean is_active
+        varchar totp_secret
+        timestamp last_login
+        timestamp created_at
+    }
+
+    users {
+        uuid id PK
+        varchar phone UK
+        varchar role
+        varchar status
+        varchar full_name
+        varchar photo_url
+        date date_of_birth
+        varchar email
+        varchar emergency_contact_name
+        varchar emergency_contact_phone
+        varchar language_preference
+        decimal average_rating
+        integer total_ratings
+        timestamp created_at
+        timestamp updated_at
+    }
+
+    otp_verifications {
+        uuid id PK
+        varchar phone
+        varchar otp_code
+        integer attempts
+        timestamp expires_at
+        timestamp created_at
+    }
+
+    driver_profiles {
+        uuid id PK
+        uuid user_id FK
+        varchar nid_front_url
+        varchar nid_back_url
+        varchar license_url
+        varchar vehicle_type
+        varchar vehicle_model
+        integer vehicle_year
+        varchar registration_number
+        varchar vehicle_photo_url
+        varchar account_holder_name
+        varchar account_number
+        varchar bank_name
+        varchar branch_name
+        varchar routing_number
+        varchar verification_status
+        uuid verified_by FK
+        timestamp verified_at
+        text rejection_reason
+        integer resubmission_count
+        timestamp created_at
+    }
+
+    drivers {
+        uuid id PK
+        uuid user_id FK
+        varchar status
+        decimal current_lat
+        decimal current_lng
+        timestamp last_location_update
+        boolean is_verified
+        varchar vehicle_type
+        decimal acceptance_rate
+        decimal average_rating
+        integer total_rides
+        integer total_requests
+        integer total_accepts
+        integer total_declines
+        timestamp created_at
+    }
+
+    fare_rules {
+        uuid id PK
+        varchar vehicle_type UK
+        decimal base_fare
+        decimal distance_rate
+        decimal time_rate
+        decimal minimum_fare
+        timestamp updated_at
+    }
+
+    rides {
+        uuid id PK
+        uuid rider_id FK
+        uuid driver_id FK
+        decimal pickup_lat
+        decimal pickup_lng
+        varchar pickup_address
+        decimal drop_lat
+        decimal drop_lng
+        varchar drop_address
+        varchar vehicle_type
+        varchar status
+        decimal estimated_fare
+        decimal final_fare
+        decimal surge_multiplier
+        text fare_breakdown
+        decimal estimated_distance
+        integer estimated_duration
+        decimal actual_distance
+        integer actual_duration
+        varchar pickup_otp_hash
+        integer otp_attempts
+        boolean otp_verified
+        timestamp otp_generated_at
+        timestamp scheduled_at
+        timestamp started_at
+        timestamp completed_at
+        timestamp cancelled_at
+        text cancellation_reason
+        timestamp created_at
+    }
+
+    scheduled_ride_jobs {
+        uuid id PK
+        uuid ride_id FK
+        varchar job_type
+        timestamp scheduled_for
+        timestamp executed_at
+        varchar status
+        timestamp created_at
+    }
+
+    ride_requests {
+        uuid id PK
+        uuid ride_id FK
+        uuid driver_id FK
+        timestamp sent_at
+        varchar response
+        timestamp responded_at
+    }
+
+    ride_route_points {
+        uuid id PK
+        uuid ride_id FK
+        decimal lat
+        decimal lng
+        decimal speed
+        decimal heading
+        timestamp recorded_at
+    }
+
+    payments {
+        uuid id PK
+        uuid ride_id FK
+        decimal amount
+        varchar payment_method
+        varchar status
+        decimal platform_commission
+        decimal driver_earning
+        varchar stripe_payment_intent_id
+        timestamp paid_at
+        varchar receipt_url
+        varchar verified_by
+        varchar dispute_status
+        text dispute_reason
+        timestamp created_at
+    }
+
+    payment_methods {
+        uuid id PK
+        uuid user_id FK
+        varchar stripe_payment_method_id
+        varchar last4
+        varchar brand
+        boolean is_default
+        timestamp created_at
+    }
+
+    ratings {
+        uuid id PK
+        uuid ride_id FK
+        uuid rated_by FK
+        uuid rated_user FK
+        varchar role
+        integer stars
+        text comment
+        timestamp created_at
+    }
+
+    device_tokens {
+        uuid id PK
+        uuid user_id FK
+        varchar token
+        varchar platform
+        timestamp updated_at
+    }
+
+    notifications_log {
+        uuid id PK
+        uuid user_id FK
+        varchar type
+        varchar title
+        text body
+        text data
+        timestamp sent_at
+        boolean delivered
+    }
+
+    disputes {
+        uuid id PK
+        uuid ride_id FK
+        uuid payment_id FK
+        uuid reported_by FK
+        uuid reported_against FK
+        text reason
+        text evidence_urls
+        varchar status
+        text resolution
+        uuid resolved_by FK
+        decimal refund_amount
+        boolean refund_issued
+        timestamp created_at
+    }
+
+    audit_logs {
+        uuid id PK
+        uuid admin_id FK
+        varchar action
+        varchar entity_type
+        varchar entity_id
+        text details
+        varchar ip_address
+        timestamp created_at
+    }
+
+    verification_logs {
+        uuid id PK
+        uuid driver_id FK
+        uuid admin_id FK
+        varchar action
+        text reason
+        text documents_to_resubmit
+        timestamp created_at
+    }
+
+    broadcast_notifications {
+        uuid id PK
+        uuid admin_id FK
+        varchar target_type
+        text target_data
+        varchar title
+        text body
+        varchar deep_link
+        timestamp scheduled_for
+        timestamp sent_at
+        integer total_sent
+        integer delivered_count
+        varchar status
+        timestamp created_at
+    }
+
+    driver_settlements {
+        uuid id PK
+        uuid driver_id FK
+        date period_start
+        date period_end
+        decimal total_collected
+        decimal platform_commission
+        decimal driver_earning
+        integer total_rides
+        varchar settlement_status
+        varchar payment_method
+        varchar transaction_reference
+        timestamp settled_at
+        timestamp created_at
+    }
+
+    users ||--o| driver_profiles : "has profile"
+    users ||--o| drivers : "driver info"
+    users ||--o{ rides : "books as rider"
+    users ||--o{ rides : "drives"
+    users ||--o{ payment_methods : "saved cards"
+    users ||--o{ device_tokens : "devices"
+    users ||--o{ notifications_log : "notifications"
+    users ||--o{ ratings : "gives ratings"
+    users ||--o{ ratings : "receives ratings"
+    users ||--o{ ride_requests : "gets requests"
+    users ||--o{ disputes : "reports"
+    users ||--o{ driver_settlements : "settlements"
+    users ||--o{ verification_logs : "verified"
+
+    rides ||--o| payments : "has payment"
+    rides ||--o{ ride_route_points : "GPS trail"
+    rides ||--o{ ride_requests : "sent to drivers"
+    rides ||--o{ scheduled_ride_jobs : "cron jobs"
+    rides ||--o{ ratings : "ride ratings"
+    rides ||--o{ disputes : "complaints"
+
+    payments ||--o{ disputes : "disputed"
+
+    admin_users ||--o{ audit_logs : "actions"
+    admin_users ||--o{ verification_logs : "verifies"
+    admin_users ||--o{ broadcast_notifications : "broadcasts"
+    admin_users ||--o{ driver_profiles : "approves"
+    admin_users ||--o{ disputes : "resolves"
