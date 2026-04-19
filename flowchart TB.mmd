@@ -1,0 +1,99 @@
+flowchart TB
+  %% RideShare AI Pro - End-to-End Product Wireframe (Low-Fidelity)
+
+  subgraph A["App Entry & Auth"]
+    A1["Splash Screen"] --> A2["Language Select\nEN / 2nd Language"]
+    A2 --> A3["Role Select\nRider / Driver"]
+    A3 --> A4["Phone Input"]
+    A4 --> A5["OTP Verify"]
+    A5 --> A6{"New User?"}
+    A6 -->|Yes| A7["Profile Setup"]
+    A6 -->|No| A8["Route by Role"]
+    A7 --> A8
+  end
+
+  subgraph R["Rider App Wireframe"]
+    R1["Rider Home\nMap + Pickup + Drop"] --> R2["Vehicle Card\nCar Only"]
+    R2 --> R3["Fare Estimate\n(base + km + min + surge)"]
+    R3 --> R4{"Ride Type"}
+
+    R4 -->|Now| R5["Confirm Booking"]
+    R4 -->|Schedule| R6["Schedule Ride\n(Date/Time/Timezone)"]
+    R6 --> R5
+
+    R5 --> R7["Searching Driver\n(5km -> 10km)"]
+    R7 --> R8["Driver Found\nDriver card + ETA + OTP"]
+    R8 --> R9["Track Driver Live"]
+    R9 --> R10["Pickup OTP Screen"]
+    R10 --> R11["Ride In Progress\nLive map + ETA"]
+
+    R8 --> R12["In-App Chat"]
+    R11 --> R12
+
+    R11 --> R13["Ride Complete"]
+    R13 --> R14["Payment Method\nCash / Card(Stripe)"]
+    R14 --> R15["Receipt"]
+    R15 --> R16["Rate & Review"]
+
+    R1 --> R17["Ride History"]
+    R1 --> R18["Scheduled Rides"]
+    R1 --> R19["Notifications"]
+    R1 --> R20["Profile & Settings\nLanguage / Saved Card / Emergency Contact"]
+  end
+
+  subgraph D["Driver App Wireframe"]
+    D1["Driver Onboarding\nNID + License + Car + Bank"] --> D2["Pending Verification"]
+    D2 --> D3{"Approved by Admin?"}
+    D3 -->|Yes| D4["Driver Home\nGo Online / Offline / Break"]
+    D3 -->|No| D2
+
+    D4 --> D5["Ride Request Popup\n30s timer"]
+    D5 --> D6{"Accept?"}
+    D6 -->|Decline| D4
+    D6 -->|Accept| D7["Navigate to Pickup"]
+
+    D7 --> D8["I've Arrived"]
+    D8 --> D9["Enter Rider OTP"]
+    D9 --> D10["Start Ride"]
+    D10 --> D11["Navigation During Ride\nGPS update every 5s"]
+    D11 --> D12["End Ride"]
+    D12 --> D13["Collect Payment\nCash confirm / Card auto"]
+    D13 --> D14["Basic Earnings View"]
+
+    D4 --> D15["In-App Chat"]
+    D4 --> D16["Scheduled Ride Alert\n15 min before"]
+  end
+
+  subgraph AD["Admin Web Panel Wireframe"]
+    AD1["Admin Login + 2FA"] --> AD2["Dashboard\nKPIs + Live Map + Pending Actions"]
+    AD2 --> AD3["Driver Verification Queue"]
+    AD2 --> AD4["Ride Monitoring"]
+    AD2 --> AD5["User Management"]
+    AD2 --> AD6["Dispute Resolution"]
+    AD2 --> AD7["Notification Broadcast"]
+    AD2 --> AD8["Financial Reports"]
+    AD2 --> AD9["Surge Control"]
+    AD2 --> AD10["Promo Code Management"]
+    AD2 --> AD11["Cash Settlement Management"]
+  end
+
+  subgraph P2["Phase 2 Module (After MVP)"]
+    P1["Parcel Booking"] --> P2A["Pickup OTP"]
+    P2A --> P3["Live Parcel Tracking Link"]
+    P3 --> P4["Delivery OTP"]
+    P4 --> P5["Parcel Payment + History"]
+  end
+
+  A8 -->|Rider| R1
+  A8 -->|Driver| D1
+  A8 -->|Admin| AD1
+
+  R5 -.creates ride.-> AD4
+  D6 -.assignment event.-> AD4
+  D3 -.approval workflow.-> AD3
+  R14 -.payment records.-> AD8
+  D13 -.commission split.-> AD11
+  R16 -.rating data.-> AD5
+  R19 -.push events.-> AD7
+  R18 -.scheduled jobs.-> D16
+  P1 -.future expansion.-> AD4
