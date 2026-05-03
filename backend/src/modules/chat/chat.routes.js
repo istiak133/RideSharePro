@@ -52,7 +52,7 @@ router.post('/:rideId/send', async (req, res, next) => {
     const { ride, receiverId } = await validateChatAccess(req.params.rideId, req.user.id);
 
     const { data, error } = await supabase.from('chat_messages').insert({
-      ride_id: req.params.rideId,
+      context_id: req.params.rideId,
       sender_id: req.user.id,
       receiver_id: receiverId,
       message: message.trim(),
@@ -83,7 +83,7 @@ router.get('/:rideId', async (req, res, next) => {
     const { data } = await supabase
       .from('chat_messages')
       .select('*')
-      .eq('ride_id', req.params.rideId)
+      .eq('context_id', req.params.rideId)
       .order('created_at', { ascending: true });
 
     successResponse(res, {
@@ -102,7 +102,7 @@ router.put('/:rideId/read', async (req, res, next) => {
     await supabase
       .from('chat_messages')
       .update({ is_read: true })
-      .eq('ride_id', req.params.rideId)
+      .eq('context_id', req.params.rideId)
       .eq('receiver_id', req.user.id)
       .eq('is_read', false);
 
@@ -116,7 +116,7 @@ router.get('/:rideId/unread', async (req, res, next) => {
     const { count } = await supabase
       .from('chat_messages')
       .select('*', { count: 'exact', head: true })
-      .eq('ride_id', req.params.rideId)
+      .eq('context_id', req.params.rideId)
       .eq('receiver_id', req.user.id)
       .eq('is_read', false);
 

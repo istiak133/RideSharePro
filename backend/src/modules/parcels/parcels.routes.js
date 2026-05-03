@@ -104,20 +104,7 @@ router.post('/', async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
-// ── F45: Get parcel details ──
-router.get('/:id', async (req, res, next) => {
-  try {
-    const { data } = await supabase
-      .from('parcels')
-      .select('*, sender:users!parcels_sender_id_fkey(full_name, phone), driver:users!parcels_driver_id_fkey(full_name, phone, photo_url)')
-      .eq('id', req.params.id)
-      .single();
-    if (!data) throw new NotFoundError('Parcel not found.');
-    successResponse(res, data);
-  } catch (e) { next(e); }
-});
-
-// ── F45: My parcels (sent) ──
+// ── F45: My parcels (sent) — MUST be before /:id ──
 router.get('/history/sent', async (req, res, next) => {
   try {
     const { data } = await supabase
@@ -138,6 +125,19 @@ router.get('/history/deliveries', async (req, res, next) => {
       .eq('driver_id', req.user.id)
       .order('created_at', { ascending: false });
     successResponse(res, data || []);
+  } catch (e) { next(e); }
+});
+
+// ── F45: Get parcel details ──
+router.get('/:id', async (req, res, next) => {
+  try {
+    const { data } = await supabase
+      .from('parcels')
+      .select('*, sender:users!parcels_sender_id_fkey(full_name, phone), driver:users!parcels_driver_id_fkey(full_name, phone, photo_url)')
+      .eq('id', req.params.id)
+      .single();
+    if (!data) throw new NotFoundError('Parcel not found.');
+    successResponse(res, data);
   } catch (e) { next(e); }
 });
 

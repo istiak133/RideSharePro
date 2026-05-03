@@ -49,6 +49,7 @@ app.use('/api/ratings', ratingsRoutes);     // F16
 app.use('/api/notifications', notificationsRoutes); // F17
 app.use('/api/admin', adminRoutes);         // F33-F38, F42-F44
 app.use('/api/parcels', parcelsRoutes);     // F45-F51 Parcel Delivery
+app.use('/api/parcels', require('./modules/parcels/parcels_chat'));  // Parcel Chat + Location
 app.use('/api/chat', chatRoutes);           // F12, F32 Real-time Chat
 
 // ── 404 ───────────────────────────────────────
