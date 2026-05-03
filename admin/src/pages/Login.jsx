@@ -4,7 +4,7 @@ import axios from 'axios';
 
 export default function Login() {
   const [username, setUsername] = useState('admin');
-  const [password, setPassword] = useState('admin123');
+  const [password, setPassword] = useState('istiak123');
   const [error, setError] = useState('');
   const navigate = useNavigate();
 

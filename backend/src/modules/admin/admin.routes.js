@@ -14,18 +14,18 @@ const jwt = require('jsonwebtoken');
 // 1. Admin Login (Hardcoded MVP bypass for simplicity)
 router.post('/login', async (req, res, next) => {
   try {
-    const { email, password } = req.body;
+    const { username, password } = req.body;
     
     // Create admin if not exists in a real app, but for MVP we bypass
-    if (email === 'admin@rideshare.com' && password === 'admin123') {
+    if (username === 'admin' && password === 'istiak123') {
       const token = jwt.sign(
-        { id: 'admin-123', role: 'admin', email },
+        { id: 'admin-123', role: 'admin', username },
         process.env.JWT_SECRET || 'rideshare-dev-secret-key-change-in-production',
         { expiresIn: '1d' }
       );
       
       return successResponse(res, {
-        user: { id: 'admin-123', email, role: 'admin' },
+        user: { id: 'admin-123', username, role: 'admin' },
         token
       }, 'Admin logged in successfully');
     }
