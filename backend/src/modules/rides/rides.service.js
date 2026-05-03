@@ -357,9 +357,7 @@ const completeRide = async (rideId, driverUserId, actualDistance, actualDuration
 
   if (error) throw new BadRequestError(error.message);
 
-  // Update driver total_rides
-  await supabase.rpc('increment_driver_rides', { driver_user_id: driverUserId }).catch(() => {});
-  // Fallback: manual update if RPC doesn't exist
+  // Update driver total_rides and set back to online
   const { data: driver } = await supabase.from('drivers').select('total_rides').eq('user_id', driverUserId).single();
   if (driver) {
     await supabase.from('drivers').update({ total_rides: (driver.total_rides || 0) + 1, status: 'online' }).eq('user_id', driverUserId);
