@@ -1,169 +1,117 @@
 // ============================================
-// RideShare AI Pro — Users Service
-// Business logic for profile management
-// Feature 2: User Profile Management
-// Feature 20: Document Upload & Verification
+// RideShare AI Pro — Users Service (Supabase)
+// F2: Profile + F20: Documents + F21: Verification
 // ============================================
 
-const { query } = require('../../config/database');
+const { supabase } = require('../../config/supabase');
 const { BadRequestError, NotFoundError } = require('../../utils/errors');
 const { isValidEmail, isOver18 } = require('../../utils/helpers');
 const { ROLES, VERIFICATION_STATUS } = require('../../utils/constants');
 
 /**
- * Update user profile (rider or driver basic info)
+ * Update user profile
  */
 const updateProfile = async (userId, profileData) => {
   const { full_name, date_of_birth, email, emergency_contact_name, emergency_contact_phone, language_preference } = profileData;
 
-  // Validation
-  if (full_name && full_name.trim().length < 3) {
-    throw new BadRequestError('Name must be at least 3 characters.');
-  }
-  if (date_of_birth && !isOver18(date_of_birth)) {
-    throw new BadRequestError('You must be at least 18 years old.');
-  }
-  if (email && !isValidEmail(email)) {
-    throw new BadRequestError('Invalid email format.');
-  }
+  if (full_name && full_name.trim().length < 3) throw new BadRequestError('Name must be at least 3 characters.');
+  if (date_of_birth && !isOver18(date_of_birth)) throw new BadRequestError('Must be 18+.');
+  if (email && !isValidEmail(email)) throw new BadRequestError('Invalid email.');
 
-  // Build dynamic UPDATE query
-  const fields = [];
-  const values = [];
-  let paramIndex = 1;
+  const updateData = {};
+  if (full_name) updateData.full_name = full_name.trim();
+  if (date_of_birth) updateData.date_of_birth = date_of_birth;
+  if (email !== undefined) updateData.email = email;
+  if (emergency_contact_name !== undefined) updateData.emergency_contact_name = emergency_contact_name;
+  if (emergency_contact_phone !== undefined) updateData.emergency_contact_phone = emergency_contact_phone;
+  if (language_preference) updateData.language_preference = language_preference;
+  updateData.updated_at = new Date().toISOString();
 
-  if (full_name) { fields.push(`full_name = $${paramIndex++}`); values.push(full_name.trim()); }
-  if (date_of_birth) { fields.push(`date_of_birth = $${paramIndex++}`); values.push(date_of_birth); }
-  if (email !== undefined) { fields.push(`email = $${paramIndex++}`); values.push(email); }
-  if (emergency_contact_name !== undefined) { fields.push(`emergency_contact_name = $${paramIndex++}`); values.push(emergency_contact_name); }
-  if (emergency_contact_phone !== undefined) { fields.push(`emergency_contact_phone = $${paramIndex++}`); values.push(emergency_contact_phone); }
-  if (language_preference) { fields.push(`language_preference = $${paramIndex++}`); values.push(language_preference); }
+  const { data, error } = await supabase
+    .from('users')
+    .update(updateData)
+    .eq('id', userId)
+    .select()
+    .single();
 
-  if (fields.length === 0) {
-    throw new BadRequestError('No fields to update.');
-  }
-
-  fields.push(`updated_at = NOW()`);
-  values.push(userId);
-
-  const result = await query(
-    `UPDATE users SET ${fields.join(', ')} WHERE id = $${paramIndex} RETURNING 
-     id, phone, role, status, full_name, photo_url, date_of_birth, email,
-     emergency_contact_name, emergency_contact_phone, language_preference, updated_at`,
-    values
-  );
-
-  if (result.rows.length === 0) {
-    throw new NotFoundError('User not found.');
-  }
-
-  return result.rows[0];
+  if (error) throw new BadRequestError('Update failed: ' + error.message);
+  return data;
 };
 
 /**
- * Update profile photo URL
+ * Update profile photo
  */
 const updateProfilePhoto = async (userId, photoUrl) => {
-  const result = await query(
-    `UPDATE users SET photo_url = $1, updated_at = NOW() WHERE id = $2 
-     RETURNING id, photo_url`,
-    [photoUrl, userId]
-  );
+  const { data, error } = await supabase
+    .from('users')
+    .update({ photo_url: photoUrl, updated_at: new Date().toISOString() })
+    .eq('id', userId)
+    .select('id, photo_url')
+    .single();
 
-  if (result.rows.length === 0) {
-    throw new NotFoundError('User not found.');
-  }
-
-  return result.rows[0];
+  if (error) throw new NotFoundError('User not found.');
+  return data;
 };
 
 /**
- * Submit driver documents (NID, license, vehicle, bank)
+ * Upload file to Supabase Storage
+ */
+const uploadFile = async (bucket, filePath, fileBuffer, mimeType) => {
+  const { data, error } = await supabase.storage
+    .from(bucket)
+    .upload(filePath, fileBuffer, { contentType: mimeType, upsert: true });
+
+  if (error) throw new BadRequestError('Upload failed: ' + error.message);
+
+  const { data: urlData } = supabase.storage.from(bucket).getPublicUrl(filePath);
+  return urlData.publicUrl;
+};
+
+/**
+ * Submit driver documents
  */
 const submitDriverDocuments = async (userId, docData) => {
-  const {
-    nid_front_url, nid_back_url, license_url,
-    vehicle_type, vehicle_model, vehicle_year, registration_number, vehicle_photo_url,
-    account_holder_name, account_number, bank_name, branch_name, routing_number,
-  } = docData;
+  // Verify user is driver
+  const { data: user } = await supabase.from('users').select('role').eq('id', userId).single();
+  if (!user || user.role !== ROLES.DRIVER) throw new BadRequestError('Only drivers can submit documents.');
 
-  // Verify user is a driver
-  const userResult = await query('SELECT role FROM users WHERE id = $1', [userId]);
-  if (userResult.rows.length === 0) throw new NotFoundError('User not found.');
-  if (userResult.rows[0].role !== ROLES.DRIVER) {
-    throw new BadRequestError('Only drivers can submit documents.');
-  }
+  // Check if profile exists
+  const { data: existing } = await supabase.from('driver_profiles').select('id').eq('user_id', userId).single();
 
-  // Upsert driver_profiles (insert or update if exists)
-  const existingDoc = await query('SELECT id FROM driver_profiles WHERE user_id = $1', [userId]);
-
-  let result;
-  if (existingDoc.rows.length > 0) {
-    // Update existing — increment resubmission count
-    result = await query(
-      `UPDATE driver_profiles SET
-        nid_front_url = COALESCE($1, nid_front_url),
-        nid_back_url = COALESCE($2, nid_back_url),
-        license_url = COALESCE($3, license_url),
-        vehicle_type = COALESCE($4, vehicle_type),
-        vehicle_model = COALESCE($5, vehicle_model),
-        vehicle_year = COALESCE($6, vehicle_year),
-        registration_number = COALESCE($7, registration_number),
-        vehicle_photo_url = COALESCE($8, vehicle_photo_url),
-        account_holder_name = COALESCE($9, account_holder_name),
-        account_number = COALESCE($10, account_number),
-        bank_name = COALESCE($11, bank_name),
-        branch_name = COALESCE($12, branch_name),
-        routing_number = COALESCE($13, routing_number),
-        verification_status = $14,
-        resubmission_count = resubmission_count + 1
-       WHERE user_id = $15
-       RETURNING *`,
-      [nid_front_url, nid_back_url, license_url,
-       vehicle_type || 'car', vehicle_model, vehicle_year, registration_number, vehicle_photo_url,
-       account_holder_name, account_number, bank_name, branch_name, routing_number,
-       VERIFICATION_STATUS.PENDING, userId]
-    );
+  if (existing) {
+    // Update
+    const { data, error } = await supabase
+      .from('driver_profiles')
+      .update({ ...docData, verification_status: VERIFICATION_STATUS.PENDING })
+      .eq('user_id', userId)
+      .select()
+      .single();
+    if (error) throw new BadRequestError(error.message);
+    return data;
   } else {
-    // Insert new
-    result = await query(
-      `INSERT INTO driver_profiles 
-        (user_id, nid_front_url, nid_back_url, license_url,
-         vehicle_type, vehicle_model, vehicle_year, registration_number, vehicle_photo_url,
-         account_holder_name, account_number, bank_name, branch_name, routing_number,
-         verification_status)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
-       RETURNING *`,
-      [userId, nid_front_url, nid_back_url, license_url,
-       vehicle_type || 'car', vehicle_model, vehicle_year, registration_number, vehicle_photo_url,
-       account_holder_name, account_number, bank_name, branch_name, routing_number,
-       VERIFICATION_STATUS.PENDING]
-    );
+    // Insert
+    const { data, error } = await supabase
+      .from('driver_profiles')
+      .insert({ user_id: userId, ...docData })
+      .select()
+      .single();
+    if (error) throw new BadRequestError(error.message);
+    return data;
   }
-
-  return result.rows[0];
 };
 
 /**
- * Get driver verification status
+ * Get verification status
  */
 const getVerificationStatus = async (userId) => {
-  const result = await query(
-    `SELECT verification_status, rejection_reason, resubmission_count, verified_at
-     FROM driver_profiles WHERE user_id = $1`,
-    [userId]
-  );
+  const { data } = await supabase
+    .from('driver_profiles')
+    .select('verification_status, rejection_reason, resubmission_count, verified_at')
+    .eq('user_id', userId)
+    .single();
 
-  if (result.rows.length === 0) {
-    return { verification_status: 'not_submitted', message: 'Please submit your documents.' };
-  }
-
-  return result.rows[0];
+  if (!data) return { verification_status: 'not_submitted' };
+  return data;
 };
 
-module.exports = {
-  updateProfile,
-  updateProfilePhoto,
-  submitDriverDocuments,
-  getVerificationStatus,
-};
+module.exports = { updateProfile, updateProfilePhoto, uploadFile, submitDriverDocuments, getVerificationStatus };
