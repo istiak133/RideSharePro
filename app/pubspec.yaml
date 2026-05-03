@@ -38,7 +38,7 @@ dependencies:
   supabase_flutter: ^2.9.0
   
   # WebView (bKash payment)
-  webview_flutter: ^4.12.0
+  webview_flutter: ^4.13.1
   
   # Utils
   intl: ^0.20.2
