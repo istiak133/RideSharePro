@@ -6,7 +6,8 @@
 const { supabase } = require('../../config/supabase');
 const { BadRequestError, NotFoundError } = require('../../utils/errors');
 const { generateOTP, hashString, compareHash, roundToNearest5, calculateCommission } = require('../../utils/helpers');
-const { RIDE_STATUS, OTP } = require('../../utils/constants');
+const { RIDE_STATUS, OTP, NOTIFICATION_TYPES } = require('../../utils/constants');
+const { sendNotification } = require('../notifications/notifications.service');
 
 /**
  * F5: Get fare estimate
@@ -243,6 +244,15 @@ const acceptRide = async (rideId, driverUserId) => {
     .eq('response', 'pending')
     .neq('driver_id', driverUserId);
 
+  // Notify Rider
+  await sendNotification(
+    data.rider_id, 
+    NOTIFICATION_TYPES.DRIVER_ACCEPTED, 
+    'Driver Assigned!', 
+    'A driver has accepted your ride and is on the way.', 
+    { ride_id: rideId }
+  );
+
   return data;
 };
 
@@ -328,6 +338,16 @@ const startRide = async (rideId, driverUserId) => {
     .single();
 
   if (error || !data) throw new BadRequestError('Cannot start. OTP not verified or not your ride.');
+
+  // Notify Rider
+  await sendNotification(
+    data.rider_id, 
+    NOTIFICATION_TYPES.RIDE_STARTED, 
+    'Ride Started', 
+    'Your trip has started. Have a safe journey!', 
+    { ride_id: rideId }
+  );
+
   return data;
 };
 

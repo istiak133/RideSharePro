@@ -71,10 +71,14 @@ class _ActiveRideScreenState extends State<ActiveRideScreen> with SingleTickerPr
             _fetchDriverInfo(driverId);
             _listenToDriverLocation(driverId);
             if (mounted) setState(() => _rideState = RideState.driverAssigned);
-          } else if (newStatus == 'in_progress') {
+          } else if (newStatus == 'started') {
             if (mounted) setState(() => _rideState = RideState.rideStarted);
           } else if (newStatus == 'completed') {
-            // handle completion
+            if (mounted) {
+              Navigator.pushReplacement(context, MaterialPageRoute(
+                builder: (_) => PaymentScreen(rideId: widget.rideId),
+              ));
+            }
           }
         },
       )

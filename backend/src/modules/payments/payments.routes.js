@@ -48,8 +48,6 @@ const getBkashHeaders = async () => {
 // Let's adjust route definitions so callback is public.
 // F13: Pay with cash
 router.post('/cash', authenticate, async (req, res, next) => {
-// F13: Pay with cash
-router.post('/cash', authenticate, async (req, res, next) => {
   try {
     const { ride_id } = req.body;
     const { data: ride } = await supabase.from('rides').select('final_fare, status, driver_id').eq('id', ride_id).single();
@@ -77,7 +75,6 @@ router.post('/cash', authenticate, async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
-// F14: Pay with card (Stripe placeholder)
 // F14: Pay with card (Stripe placeholder)
 router.post('/card', authenticate, async (req, res, next) => {
   try {
@@ -110,7 +107,6 @@ router.post('/card', authenticate, async (req, res, next) => {
 });
 
 // F14: Save card
-// F14: Save card
 router.post('/methods', authenticate, authorize('rider'), async (req, res, next) => {
   try {
     const { stripe_payment_method_id, last4, brand } = req.body;
@@ -125,7 +121,6 @@ router.post('/methods', authenticate, authorize('rider'), async (req, res, next)
 });
 
 // Get saved cards
-// Get saved cards
 router.get('/methods', authenticate, authorize('rider'), async (req, res, next) => {
   try {
     const { data } = await supabase.from('payment_methods').select('*').eq('user_id', req.user.id);
@@ -133,7 +128,6 @@ router.get('/methods', authenticate, authorize('rider'), async (req, res, next) 
   } catch (e) { next(e); }
 });
 
-// F30: Driver earnings
 // F30: Driver earnings
 router.get('/earnings', authenticate, authorize('driver'), async (req, res, next) => {
   try {
