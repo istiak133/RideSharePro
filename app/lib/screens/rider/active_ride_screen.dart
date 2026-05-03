@@ -74,9 +74,10 @@ class _ActiveRideScreenState extends State<ActiveRideScreen> with SingleTickerPr
           } else if (newStatus == 'started') {
             if (mounted) setState(() => _rideState = RideState.rideStarted);
           } else if (newStatus == 'completed') {
+            final double fareAmount = double.tryParse(payload.newRecord['final_fare']?.toString() ?? payload.newRecord['estimated_fare']?.toString() ?? '0') ?? 0.0;
             if (mounted) {
               Navigator.pushReplacement(context, MaterialPageRoute(
-                builder: (_) => PaymentScreen(rideId: widget.rideId),
+                builder: (_) => PaymentScreen(rideId: widget.rideId, fareAmount: fareAmount),
               ));
             }
           }
