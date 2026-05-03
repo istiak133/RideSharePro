@@ -19,6 +19,7 @@ const paymentsRoutes = require('./modules/payments/payments.routes');
 const ratingsRoutes = require('./modules/ratings/ratings.routes');
 const notificationsRoutes = require('./modules/notifications/notifications.routes');
 const adminRoutes = require('./modules/admin/admin.routes');
+const parcelsRoutes = require('./modules/parcels/parcels.routes');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -42,6 +43,7 @@ app.use('/api/payments', paymentsRoutes);   // F13, F14, F30
 app.use('/api/ratings', ratingsRoutes);     // F16
 app.use('/api/notifications', notificationsRoutes); // F17
 app.use('/api/admin', adminRoutes);         // F33-F38, F42-F44
+app.use('/api/parcels', parcelsRoutes);     // F45-F51 Parcel Delivery
 
 // ── 404 ───────────────────────────────────────
 app.use((req, res, next) => {
@@ -55,7 +57,7 @@ app.use(errorHandler);
 const server = app.listen(PORT);
 server.on('listening', () => {
   console.log(`\n🚀 RideShare AI Pro API | Port ${PORT} | ${process.env.NODE_ENV}`);
-  console.log('All 39 MVP features API ready!\n');
+  console.log('All 46 features (39 MVP + 7 Parcel) API ready!\n');
 });
 
 module.exports = app;
