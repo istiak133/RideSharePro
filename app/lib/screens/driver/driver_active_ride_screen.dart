@@ -5,6 +5,8 @@ import 'package:latlong2/latlong.dart';
 import 'package:rideshare_app/config/theme.dart';
 import 'package:rideshare_app/config/app_config.dart';
 import 'package:rideshare_app/screens/chat_screen.dart';
+import 'package:rideshare_app/services/api_service.dart';
+import 'package:rideshare_app/services/location_service.dart';
 
 enum DriverRideState { goingToPickup, arrivedAtPickup, onTrip }
 
@@ -20,37 +22,95 @@ class DriverActiveRideScreen extends StatefulWidget {
 class _DriverActiveRideScreenState extends State<DriverActiveRideScreen> {
   DriverRideState _currentState = DriverRideState.goingToPickup;
   final TextEditingController _otpController = TextEditingController();
+  final MapController _mapController = MapController();
 
-  final LatLng _driverLoc = LatLng(AppConfig.defaultLat, AppConfig.defaultLng);
+  LatLng _driverLoc = LatLng(AppConfig.defaultLat, AppConfig.defaultLng);
   late LatLng _pickupLoc;
   late LatLng _dropLoc;
+  List<LatLng> _routePoints = [];
+  bool _isLoadingRoute = false;
 
   @override
   void initState() {
     super.initState();
-    // In real app, these come from widget.rideRequest lat/lng
-    _pickupLoc = LatLng(_driverLoc.latitude + 0.01, _driverLoc.longitude + 0.01);
-    _dropLoc = LatLng(_driverLoc.latitude - 0.02, _driverLoc.longitude - 0.02);
+    _pickupLoc = LatLng(widget.rideRequest['pickup_lat'] ?? AppConfig.defaultLat, widget.rideRequest['pickup_lng'] ?? AppConfig.defaultLng);
+    _dropLoc = LatLng(widget.rideRequest['drop_lat'] ?? AppConfig.defaultLat, widget.rideRequest['drop_lng'] ?? AppConfig.defaultLng);
+    
+    // Start tracking driver location
+    LocationService.startTracking((loc) {
+      if (mounted) setState(() => _driverLoc = loc);
+    });
+
+    _fetchRoute();
   }
 
-  void _onSwipeAction() {
+  @override
+  void dispose() {
+    LocationService.stopTracking();
+    super.dispose();
+  }
+
+  Future<void> _fetchRoute() async {
+    setState(() => _isLoadingRoute = true);
+    final start = _currentState == DriverRideState.goingToPickup ? _driverLoc : _pickupLoc;
+    final end = _currentState == DriverRideState.goingToPickup ? _pickupLoc : _dropLoc;
+    
+    final routeData = await LocationService.getRoute(start, end);
+    if (mounted && routeData != null) {
+      setState(() {
+        _routePoints = routeData['points'];
+        _isLoadingRoute = false;
+      });
+      _fitMapToRoute();
+    } else if (mounted) {
+      setState(() => _isLoadingRoute = false);
+    }
+  }
+
+  void _fitMapToRoute() {
+    if (_routePoints.isEmpty) return;
+    double minLat = _routePoints.first.latitude, maxLat = _routePoints.first.latitude;
+    double minLng = _routePoints.first.longitude, maxLng = _routePoints.first.longitude;
+    for (var p in _routePoints) {
+      if (p.latitude < minLat) minLat = p.latitude;
+      if (p.latitude > maxLat) maxLat = p.latitude;
+      if (p.longitude < minLng) minLng = p.longitude;
+      if (p.longitude > maxLng) maxLng = p.longitude;
+    }
+    _mapController.fitCamera(CameraFit.bounds(
+      bounds: LatLngBounds(LatLng(minLat, minLng), LatLng(maxLat, maxLng)),
+      padding: const EdgeInsets.only(top: 50, left: 50, right: 50, bottom: 350),
+    ));
+  }
+
+  void _onSwipeAction() async {
     if (_currentState == DriverRideState.goingToPickup) {
       setState(() => _currentState = DriverRideState.arrivedAtPickup);
+      _fetchRoute(); // re-fetch route for pickup -> dropoff (it will be drawn once trip starts, but good to load)
     } else if (_currentState == DriverRideState.onTrip) {
       _showRideCompleteDialog();
     }
   }
 
-  void _verifyOTP() {
-    if (_otpController.text.length == 4) {
-      setState(() => _currentState = DriverRideState.onTrip);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('OTP Verified! Trip Started.'), backgroundColor: AppTheme.success),
-      );
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Enter 4-digit OTP'), backgroundColor: AppTheme.error),
-      );
+  void _verifyOTP() async {
+    if (_otpController.text.length != 4) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Enter 4-digit OTP'), backgroundColor: AppTheme.error));
+      return;
+    }
+
+    try {
+      await ApiService.post('/rides/${widget.rideRequest['id']}/verify-otp', body: {'otp': _otpController.text});
+      await ApiService.put('/rides/${widget.rideRequest['id']}/start');
+      
+      setState(() {
+        _currentState = DriverRideState.onTrip;
+        _otpController.clear();
+      });
+      _fetchRoute(); // draw route to dropoff
+      
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('OTP Verified! Trip Started.'), backgroundColor: AppTheme.success));
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed: $e'), backgroundColor: AppTheme.error));
     }
   }
 
@@ -71,9 +131,16 @@ class _DriverActiveRideScreenState extends State<DriverActiveRideScreen> {
         ),
         actions: [
           ElevatedButton(
-            onPressed: () {
-              Navigator.pop(ctx);
-              Navigator.pop(context); // Go back to Home
+            onPressed: () async {
+              try {
+                await ApiService.put('/rides/${widget.rideRequest['id']}/complete');
+                if (mounted) {
+                  Navigator.pop(ctx);
+                  Navigator.pop(context); // Go back to Home
+                }
+              } catch (e) {
+                if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to complete: $e'), backgroundColor: AppTheme.error));
+              }
             },
             child: const Text('Finish'),
           ),
@@ -89,6 +156,7 @@ class _DriverActiveRideScreenState extends State<DriverActiveRideScreen> {
         children: [
           // Map Background
           FlutterMap(
+            mapController: _mapController,
             options: MapOptions(
               initialCenter: _currentState == DriverRideState.onTrip ? _dropLoc : _pickupLoc,
               initialZoom: 14.0,
@@ -98,6 +166,12 @@ class _DriverActiveRideScreenState extends State<DriverActiveRideScreen> {
                 urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
                 userAgentPackageName: 'com.rideshareai.app',
               ),
+              if (_routePoints.isNotEmpty)
+                PolylineLayer(
+                  polylines: [
+                    Polyline(points: _routePoints, strokeWidth: 5, color: Colors.blueAccent),
+                  ],
+                ),
               MarkerLayer(
                 markers: [
                   Marker(point: _driverLoc, child: const Icon(Icons.drive_eta, color: AppTheme.primary, size: 30)),

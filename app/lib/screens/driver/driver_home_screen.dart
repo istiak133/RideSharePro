@@ -13,7 +13,10 @@ import 'package:rideshare_app/screens/auth/phone_login_screen.dart';
 import 'package:rideshare_app/screens/driver/driver_active_ride_screen.dart';
 import 'package:rideshare_app/screens/driver/driver_profile_screen.dart';
 import 'package:rideshare_app/screens/driver/driver_trips_screen.dart';
+import 'package:rideshare_app/services/location_service.dart';
+import 'package:rideshare_app/services/api_service.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:geolocator/geolocator.dart';
 import 'dart:async';
 
 class DriverHomeScreen extends StatefulWidget {
@@ -26,32 +29,57 @@ class DriverHomeScreen extends StatefulWidget {
 class _DriverHomeScreenState extends State<DriverHomeScreen> {
   bool _isOnline = false;
   int _currentIndex = 0;
-  final LatLng _currentLocation = LatLng(AppConfig.defaultLat, AppConfig.defaultLng);
+  LatLng _currentLocation = LatLng(AppConfig.defaultLat, AppConfig.defaultLng);
   
   RealtimeChannel? _rideChannel;
 
   @override
   void dispose() {
     _rideChannel?.unsubscribe();
+    LocationService.stopTracking();
     super.dispose();
   }
 
-  void _toggleOnline() {
-    setState(() => _isOnline = !_isOnline);
-    
-    if (_isOnline) {
-      // Simulate incoming ride for demo purposes after 3 seconds
-      Timer(const Duration(seconds: 3), () {
-        if (_isOnline && mounted) {
-          _showIncomingRequest({
-            'pickup_address': 'Banani Super Market, Dhaka',
-            'drop_address': 'Dhanmondi 27, Dhaka',
-            'estimated_fare': 250,
-            'distance': '6.2 km',
-          });
+  void _toggleOnline() async {
+    if (!_isOnline) {
+      // Going online: check permission & start tracking
+      final hasPerm = await Geolocator.requestPermission() != LocationPermission.denied; // simplified for demo
+      if (!hasPerm) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Location permission required to go online')),
+          );
         }
+        return;
+      }
+      
+      LocationService.startTracking((loc) {
+        if (mounted) setState(() => _currentLocation = loc);
       });
+      _listenForRides();
+    } else {
+      // Going offline
+      LocationService.stopTracking();
+      _rideChannel?.unsubscribe();
+      _rideChannel = null;
     }
+    
+    setState(() => _isOnline = !_isOnline);
+  }
+
+  void _listenForRides() {
+    _rideChannel = Supabase.instance.client
+      .channel('public:rides')
+      .onPostgresChanges(
+        event: PostgresChangeEvent.insert,
+        schema: 'public',
+        table: 'rides',
+        filter: PostgresChangeFilter(type: PostgresChangeFilterType.eq, column: 'status', value: 'searching'),
+        callback: (payload) {
+          _showIncomingRequest(payload.newRecord);
+        },
+      )
+      .subscribe();
   }
 
   void _showIncomingRequest(Map<String, dynamic> ride) {
@@ -149,11 +177,20 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
                   const SizedBox(width: 16),
                   Expanded(
                     child: ElevatedButton(
-                      onPressed: () {
-                        Navigator.pop(ctx);
-                        Navigator.push(context, MaterialPageRoute(
-                          builder: (_) => DriverActiveRideScreen(rideRequest: ride),
-                        ));
+                      onPressed: () async {
+                        try {
+                          await ApiService.post('/rides/${ride['id']}/accept');
+                          if (mounted) {
+                            Navigator.pop(ctx);
+                            Navigator.push(context, MaterialPageRoute(
+                              builder: (_) => DriverActiveRideScreen(rideRequest: ride),
+                            ));
+                          }
+                        } catch (e) {
+                          if (mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error accepting ride: $e')));
+                          }
+                        }
                       },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppTheme.primary,

@@ -1,11 +1,55 @@
 import 'package:flutter/material.dart';
 import 'package:rideshare_app/config/theme.dart';
+import 'package:rideshare_app/services/api_service.dart';
 
-class DriverTripsScreen extends StatelessWidget {
+class DriverTripsScreen extends StatefulWidget {
   const DriverTripsScreen({super.key});
 
   @override
+  State<DriverTripsScreen> createState() => _DriverTripsScreenState();
+}
+
+class _DriverTripsScreenState extends State<DriverTripsScreen> {
+  bool _isLoading = true;
+  Map<String, dynamic> _earnings = {};
+  List<dynamic> _recentTrips = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchData();
+  }
+
+  Future<void> _fetchData() async {
+    try {
+      final earnRes = await ApiService.get('/payments/earnings');
+      final histRes = await ApiService.get('/rides/history/me');
+      
+      if (mounted) {
+        setState(() {
+          _earnings = earnRes['data'] ?? {};
+          _recentTrips = histRes['data']['rides'] ?? [];
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to load data: $e'), backgroundColor: AppTheme.error));
+      }
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    if (_isLoading) {
+      return const Scaffold(backgroundColor: Colors.black, body: Center(child: CircularProgressIndicator()));
+    }
+
+    final todayEarnings = _earnings['today_earnings']?.toString() ?? '0';
+    final todayTrips = _earnings['today_trips']?.toString() ?? '0';
+    final totalEarnings = _earnings['total_earnings']?.toString() ?? '0';
+
     return Scaffold(
       backgroundColor: Colors.black,
       appBar: AppBar(
@@ -30,34 +74,16 @@ class DriverTripsScreen extends StatelessWidget {
                 children: [
                   const Text('Today\'s Earnings', style: TextStyle(color: Colors.white70, fontSize: 16)),
                   const SizedBox(height: 8),
-                  const Text('৳ 1,450', style: TextStyle(color: Colors.white, fontSize: 40, fontWeight: FontWeight.w900)),
+                  Text('৳ $todayEarnings', style: const TextStyle(color: Colors.white, fontSize: 40, fontWeight: FontWeight.w900)),
                   const SizedBox(height: 24),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      _buildStat('Trips', '6'),
+                      _buildStat('Trips', todayTrips),
                       Container(width: 1, height: 40, color: Colors.white24),
-                      _buildStat('Hours', '4.5'),
-                      Container(width: 1, height: 40, color: Colors.white24),
-                      _buildStat('Cash', '৳850'),
+                      _buildStat('Total', '৳$totalEarnings'),
                     ],
                   ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 32),
-
-            // Weekly Summary
-            const Text('Weekly Summary', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 16),
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(color: AppTheme.bgCard, borderRadius: BorderRadius.circular(16)),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text('May 01 - May 07', style: TextStyle(color: Colors.white, fontSize: 16)),
-                  const Text('৳ 6,230', style: TextStyle(color: AppTheme.success, fontSize: 18, fontWeight: FontWeight.bold)),
                 ],
               ),
             ),
@@ -67,12 +93,24 @@ class DriverTripsScreen extends StatelessWidget {
             const Text('Recent Trips', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
             const SizedBox(height: 16),
             
-            _buildTripTile(date: 'Today, 10:30 AM', pickup: 'Gulshan 1', drop: 'Banani', fare: '৳ 250', status: 'Completed'),
-            _buildTripTile(date: 'Today, 09:15 AM', pickup: 'Badda', drop: 'Gulshan 1', fare: '৳ 150', status: 'Completed'),
-            _buildTripTile(date: 'Yesterday, 04:00 PM', pickup: 'Dhanmondi 27', drop: 'Mohakhali', fare: '৳ 420', status: 'Completed'),
-            _buildTripTile(date: 'Yesterday, 01:20 PM', pickup: 'Farmgate', drop: 'Dhanmondi 27', fare: '৳ 180', status: 'Completed'),
+            if (_recentTrips.isEmpty)
+              const Center(child: Padding(padding: EdgeInsets.all(32.0), child: Text('No completed trips yet', style: TextStyle(color: AppTheme.textHint))))
+            else
+              ..._recentTrips.map((trip) {
+                final dateStr = trip['completed_at'] ?? trip['created_at'];
+                final date = DateTime.parse(dateStr).toLocal();
+                final formattedDate = '${date.day}/${date.month} - ${date.hour}:${date.minute.toString().padLeft(2, '0')}';
+                
+                return _buildTripTile(
+                  date: formattedDate,
+                  pickup: trip['pickup_address'] ?? 'Unknown',
+                  drop: trip['drop_address'] ?? 'Unknown',
+                  fare: '৳ ${trip['final_fare'] ?? trip['estimated_fare']}',
+                  status: trip['status'],
+                );
+              }),
             
-            const SizedBox(height: 80), // Padding for bottom nav
+            const SizedBox(height: 80),
           ],
         ),
       ),
@@ -109,7 +147,7 @@ class DriverTripsScreen extends StatelessWidget {
             children: [
               const Icon(Icons.my_location, color: AppTheme.primary, size: 16),
               const SizedBox(width: 8),
-              Text(pickup, style: const TextStyle(color: Colors.white, fontSize: 14)),
+              Expanded(child: Text(pickup, style: const TextStyle(color: Colors.white, fontSize: 14), maxLines: 1, overflow: TextOverflow.ellipsis)),
             ],
           ),
           const Padding(
@@ -120,7 +158,7 @@ class DriverTripsScreen extends StatelessWidget {
             children: [
               const Icon(Icons.location_on, color: AppTheme.error, size: 16),
               const SizedBox(width: 8),
-              Text(drop, style: const TextStyle(color: Colors.white, fontSize: 14)),
+              Expanded(child: Text(drop, style: const TextStyle(color: Colors.white, fontSize: 14), maxLines: 1, overflow: TextOverflow.ellipsis)),
             ],
           ),
         ],

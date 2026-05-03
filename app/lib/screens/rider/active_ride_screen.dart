@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
@@ -36,6 +37,11 @@ class _ActiveRideScreenState extends State<ActiveRideScreen> with SingleTickerPr
   // Animation for pulse effect
   late AnimationController _pulseController;
   late Animation<double> _pulseAnimation;
+  
+  RealtimeChannel? _rideChannel;
+  RealtimeChannel? _driverChannel;
+  LatLng? _driverLocation;
+  Map<String, dynamic>? _driverInfo;
 
   @override
   void initState() {
@@ -45,19 +51,66 @@ class _ActiveRideScreenState extends State<ActiveRideScreen> with SingleTickerPr
     _pulseController = AnimationController(vsync: this, duration: const Duration(milliseconds: 1500))..repeat(reverse: true);
     _pulseAnimation = Tween<double>(begin: 1.0, end: 1.2).animate(CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut));
 
-    // Simulate driver finding after 5 seconds
-    Timer(const Duration(seconds: 5), () {
-      if (mounted && _rideState == RideState.searching) {
-        setState(() => _rideState = RideState.driverAssigned);
-      }
-    });
-
+    _listenToRideStatus();
     WidgetsBinding.instance.addPostFrameCallback((_) => _fitMapToRoute());
+  }
+
+  void _listenToRideStatus() {
+    _rideChannel = Supabase.instance.client
+      .channel('public:rides:id=${widget.rideId}')
+      .onPostgresChanges(
+        event: PostgresChangeEvent.update,
+        schema: 'public',
+        table: 'rides',
+        filter: PostgresChangeFilter(type: PostgresChangeFilterType.eq, column: 'id', value: widget.rideId),
+        callback: (payload) {
+          final newStatus = payload.newRecord['status'];
+          final driverId = payload.newRecord['driver_id'];
+          
+          if (newStatus == 'driver_assigned' && _rideState == RideState.searching) {
+            _fetchDriverInfo(driverId);
+            _listenToDriverLocation(driverId);
+            if (mounted) setState(() => _rideState = RideState.driverAssigned);
+          } else if (newStatus == 'in_progress') {
+            if (mounted) setState(() => _rideState = RideState.rideStarted);
+          } else if (newStatus == 'completed') {
+            // handle completion
+          }
+        },
+      )
+      .subscribe();
+  }
+
+  void _fetchDriverInfo(String driverId) async {
+    final res = await Supabase.instance.client.from('users').select('full_name, phone, photo_url, average_rating').eq('id', driverId).single();
+    if (mounted) setState(() => _driverInfo = res);
+  }
+
+  void _listenToDriverLocation(String driverId) {
+    _driverChannel = Supabase.instance.client
+      .channel('public:drivers:user_id=$driverId')
+      .onPostgresChanges(
+        event: PostgresChangeEvent.update,
+        schema: 'public',
+        table: 'drivers',
+        filter: PostgresChangeFilter(type: PostgresChangeFilterType.eq, column: 'user_id', value: driverId),
+        callback: (payload) {
+          final lat = payload.newRecord['current_lat'];
+          final lng = payload.newRecord['current_lng'];
+          if (lat != null && lng != null && mounted) {
+            setState(() => _driverLocation = LatLng(lat, lng));
+            // Optional: animate map to include driver location
+          }
+        },
+      )
+      .subscribe();
   }
 
   @override
   void dispose() {
     _pulseController.dispose();
+    _rideChannel?.unsubscribe();
+    _driverChannel?.unsubscribe();
     super.dispose();
   }
 
@@ -118,6 +171,15 @@ class _ActiveRideScreenState extends State<ActiveRideScreen> with SingleTickerPr
                 markers: [
                   Marker(point: widget.pickupLocation, child: const Icon(Icons.circle, color: Colors.blue, size: 16)),
                   Marker(point: widget.dropLocation, child: const Icon(Icons.location_on, color: Colors.red, size: 30)),
+                  if (_driverLocation != null)
+                    Marker(
+                      point: _driverLocation!,
+                      width: 50, height: 50,
+                      child: Container(
+                        decoration: BoxDecoration(color: AppTheme.accent.withValues(alpha: 0.2), shape: BoxShape.circle),
+                        child: const Icon(Icons.drive_eta, color: AppTheme.accent, size: 28),
+                      ),
+                    ),
                 ],
               ),
             ],

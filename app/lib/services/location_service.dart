@@ -6,6 +6,8 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:latlong2/latlong.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:rideshare_app/services/api_service.dart';
+import 'dart:async';
 
 class LocationService {
   // Nominatim Search URL (OpenStreetMap Geocoding)
@@ -104,5 +106,48 @@ class LocationService {
       print('Routing error: $e');
     }
     return null;
+  }
+
+  // --- Real-time Tracking ---
+  static StreamSubscription<Position>? _positionStream;
+
+  static void startTracking(void Function(LatLng) onUpdate) async {
+    bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+    if (!serviceEnabled) return;
+
+    LocationPermission permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.denied) {
+      permission = await Geolocator.requestPermission();
+      if (permission == LocationPermission.denied) return;
+    }
+    if (permission == LocationPermission.deniedForever) return;
+
+    _positionStream?.cancel();
+    _positionStream = Geolocator.getPositionStream(
+      locationSettings: const LocationSettings(
+        accuracy: LocationAccuracy.high,
+        distanceFilter: 10,
+      ),
+    ).listen((Position position) {
+      final latLng = LatLng(position.latitude, position.longitude);
+      onUpdate(latLng);
+      _updateBackendLocation(latLng);
+    });
+  }
+
+  static void stopTracking() {
+    _positionStream?.cancel();
+    _positionStream = null;
+  }
+
+  static Future<void> _updateBackendLocation(LatLng location) async {
+    try {
+      await ApiService.put('/rides/driver/location', body: {
+        'lat': location.latitude,
+        'lng': location.longitude,
+      });
+    } catch (e) {
+      print('Failed to update location: $e');
+    }
   }
 }
