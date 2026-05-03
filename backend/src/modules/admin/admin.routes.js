@@ -192,14 +192,23 @@ router.put('/disputes/:id/resolve', adminAuth, async (req, res, next) => {
 router.post('/disputes', async (req, res, next) => {
   try {
     const { ride_id, reported_against, reason } = req.body;
-    // Get auth header to check if user or admin
+    if (!ride_id || !reported_against || !reason) throw new BadRequestError('ride_id, reported_against, reason required.');
+
     const authHeader = req.headers.authorization;
-    const token = authHeader?.split(' ')[1];
+    if (!authHeader) throw new UnauthorizedError('Token required.');
+    const token = authHeader.split(' ')[1];
     const { verifyToken } = require('../../utils/helpers');
-    const decoded = verifyToken(token);
+    
+    let reportedBy;
+    try {
+      const decoded = verifyToken(token);
+      reportedBy = decoded.userId || decoded.adminId;
+    } catch (err) {
+      throw new UnauthorizedError('Invalid token.');
+    }
 
     const { data, error } = await supabase.from('disputes').insert({
-      ride_id, reported_by: decoded.userId || decoded.adminId, reported_against, reason,
+      ride_id, reported_by: reportedBy, reported_against, reason,
     }).select().single();
 
     if (error) throw new BadRequestError(error.message);
