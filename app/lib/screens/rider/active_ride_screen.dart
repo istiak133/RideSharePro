@@ -172,26 +172,50 @@ class _ActiveRideScreenState extends State<ActiveRideScreen> with SingleTickerPr
       key: const ValueKey('searching'),
       mainAxisSize: MainAxisSize.min,
       children: [
-        ScaleTransition(
-          scale: _pulseAnimation,
-          child: Container(
-            width: 80, height: 80,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: AppTheme.primary.withValues(alpha: 0.2),
-              border: Border.all(color: AppTheme.primary, width: 2),
+        Container(width: 40, height: 4, decoration: BoxDecoration(color: AppTheme.textHint.withValues(alpha: 0.3), borderRadius: BorderRadius.circular(2))),
+        const SizedBox(height: 20),
+        Stack(
+          alignment: Alignment.center,
+          children: [
+            ScaleTransition(
+              scale: _pulseAnimation,
+              child: Container(
+                width: 100, height: 100,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: AppTheme.primary.withValues(alpha: 0.15),
+                ),
+              ),
             ),
-            child: const Icon(Icons.search, color: AppTheme.primary, size: 40),
-          ),
+            Container(
+              width: 70, height: 70,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: AppTheme.primary.withValues(alpha: 0.25),
+                border: Border.all(color: AppTheme.primary, width: 2),
+              ),
+              child: const Icon(Icons.search, color: AppTheme.primary, size: 36),
+            ),
+          ],
         ),
         const SizedBox(height: 24),
-        const Text('Searching for nearby drivers...', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+        const Text('Finding your ride...', style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold)),
         const SizedBox(height: 8),
-        LinearProgressIndicator(color: AppTheme.primary, backgroundColor: AppTheme.bgSurface),
-        const SizedBox(height: 16),
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: const Text('Cancel Request', style: TextStyle(color: AppTheme.error)),
+        const Text('Contacting nearby drivers', style: TextStyle(color: AppTheme.textSecondary, fontSize: 14)),
+        const SizedBox(height: 24),
+        LinearProgressIndicator(color: AppTheme.primary, backgroundColor: AppTheme.bgSurface, minHeight: 3),
+        const SizedBox(height: 24),
+        SizedBox(
+          width: double.infinity,
+          child: TextButton(
+            onPressed: () => Navigator.pop(context),
+            style: TextButton.styleFrom(
+              backgroundColor: AppTheme.bgSurface,
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            ),
+            child: const Text('Cancel Request', style: TextStyle(color: AppTheme.error, fontSize: 16, fontWeight: FontWeight.w600)),
+          ),
         ),
       ],
     );
@@ -203,67 +227,121 @@ class _ActiveRideScreenState extends State<ActiveRideScreen> with SingleTickerPr
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        Center(child: Container(width: 40, height: 4, decoration: BoxDecoration(color: AppTheme.textHint.withValues(alpha: 0.3), borderRadius: BorderRadius.circular(2)))),
+        const SizedBox(height: 20),
+        
+        // Driver Arrival Info
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          crossAxisAlignment: CrossAxisAlignment.end,
           children: [
-            const Text('Driver is arriving in 3 min', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+            const Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Arriving in', style: TextStyle(color: AppTheme.textSecondary, fontSize: 14)),
+                Text('5 mins', style: TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold)),
+              ],
+            ),
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              decoration: BoxDecoration(color: AppTheme.primary.withValues(alpha: 0.2), borderRadius: BorderRadius.circular(20)),
-              child: Text('OTP: ${widget.otp}', style: const TextStyle(color: AppTheme.primary, fontWeight: FontWeight.bold, fontSize: 16)),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              decoration: BoxDecoration(
+                color: AppTheme.primary.withValues(alpha: 0.1),
+                border: Border.all(color: AppTheme.primary.withValues(alpha: 0.3)),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Column(
+                children: [
+                  const Text('PIN CODE', style: TextStyle(color: AppTheme.textHint, fontSize: 10, letterSpacing: 1)),
+                  Text(widget.otp, style: const TextStyle(color: AppTheme.primary, fontWeight: FontWeight.w900, fontSize: 22, letterSpacing: 2)),
+                ],
+              ),
             ),
           ],
         ),
-        const SizedBox(height: 20),
+        
+        const Padding(padding: EdgeInsets.symmetric(vertical: 16), child: Divider(color: AppTheme.bgSurface)),
+        
+        // Driver Details
         Row(
           children: [
-            const CircleAvatar(radius: 26, backgroundImage: NetworkImage('https://i.pravatar.cc/150?img=11')),
+            Stack(
+              children: [
+                const CircleAvatar(radius: 28, backgroundImage: NetworkImage('https://i.pravatar.cc/150?img=11')),
+                Positioned(
+                  bottom: 0, right: 0,
+                  child: Container(
+                    padding: const EdgeInsets.all(4),
+                    decoration: const BoxDecoration(color: AppTheme.bgCard, shape: BoxShape.circle),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.star, color: Colors.amber, size: 12),
+                        const Text('4.9', style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold)),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
             const SizedBox(width: 16),
             const Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Rahim Uddin', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600)),
-                  Text('Honda CBR • DHAKA-H-12-3456', style: TextStyle(color: AppTheme.textHint, fontSize: 13)),
+                  Text('Rahim Uddin', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+                  Text('Honda CBR • DHAKA-H-12-3456', style: TextStyle(color: AppTheme.textSecondary, fontSize: 13)),
                 ],
               ),
             ),
-            Row(
-              children: [
-                const Icon(Icons.star, color: Colors.amber, size: 18),
-                const SizedBox(width: 4),
-                const Text('4.9', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-              ],
-            ),
           ],
         ),
+        
         const SizedBox(height: 24),
+        
+        // Actions
         Row(
           children: [
             Expanded(
-              child: ElevatedButton.icon(
+              child: ElevatedButton(
                 onPressed: _verifyOtp,
-                icon: const Icon(Icons.check_circle_outline),
-                label: const Text('Verify OTP (Demo)'),
-                style: ElevatedButton.styleFrom(backgroundColor: AppTheme.success, padding: const EdgeInsets.symmetric(vertical: 16)),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppTheme.primary,
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  elevation: 0,
+                ),
+                child: const Text('Verify OTP (Demo)', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
               ),
             ),
-            const SizedBox(width: 16),
-            CircleAvatar(
-              radius: 26,
-              backgroundColor: AppTheme.bgSurface,
-              child: IconButton(
-                icon: const Icon(Icons.chat_bubble_rounded, color: AppTheme.primary),
-                onPressed: () {
-                  Navigator.push(context, MaterialPageRoute(
-                    builder: (_) => ChatScreen(rideId: widget.rideId, receiverName: 'Rahim Uddin'),
-                  ));
-                },
-              ),
-            ),
+            const SizedBox(width: 12),
+            _buildActionButton(Icons.chat_bubble_rounded, () {
+              Navigator.push(context, MaterialPageRoute(
+                builder: (_) => ChatScreen(rideId: widget.rideId, receiverName: 'Rahim Uddin'),
+              ));
+            }),
+            const SizedBox(width: 12),
+            _buildActionButton(Icons.call_rounded, () {
+              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Calling Driver...')));
+            }),
           ],
         ),
       ],
+    );
+  }
+
+  Widget _buildActionButton(IconData icon, VoidCallback onTap) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        width: 56, height: 56,
+        decoration: BoxDecoration(
+          color: AppTheme.bgSurface,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: AppTheme.textHint.withValues(alpha: 0.1)),
+        ),
+        child: Icon(icon, color: AppTheme.primary, size: 24),
+      ),
     );
   }
 
@@ -272,21 +350,31 @@ class _ActiveRideScreenState extends State<ActiveRideScreen> with SingleTickerPr
       key: const ValueKey('started'),
       mainAxisSize: MainAxisSize.min,
       children: [
-        const Icon(Icons.two_wheeler, color: AppTheme.primary, size: 60),
-        const SizedBox(height: 16),
-        const Text('On route to destination', style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
+        Container(width: 40, height: 4, decoration: BoxDecoration(color: AppTheme.textHint.withValues(alpha: 0.3), borderRadius: BorderRadius.circular(2))),
+        const SizedBox(height: 20),
+        Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(color: AppTheme.primary.withValues(alpha: 0.1), shape: BoxShape.circle),
+          child: const Icon(Icons.two_wheeler, color: AppTheme.primary, size: 48),
+        ),
+        const SizedBox(height: 20),
+        const Text('On route to destination', style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold)),
         const SizedBox(height: 8),
-        const Text('Enjoy your ride safely!', style: TextStyle(color: AppTheme.textSecondary)),
-        const SizedBox(height: 24),
+        const Text('Enjoy your ride safely!', style: TextStyle(color: AppTheme.textSecondary, fontSize: 15)),
+        const SizedBox(height: 32),
         SizedBox(
           width: double.infinity,
-          child: ElevatedButton(
+          child: TextButton(
             onPressed: () {
               // End Ride Demo
               Navigator.pop(context);
             },
-            style: ElevatedButton.styleFrom(backgroundColor: AppTheme.error, padding: const EdgeInsets.symmetric(vertical: 16)),
-            child: const Text('End Ride (Demo)'),
+            style: TextButton.styleFrom(
+              backgroundColor: AppTheme.error.withValues(alpha: 0.1),
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            ),
+            child: const Text('End Ride (Demo)', style: TextStyle(color: AppTheme.error, fontSize: 16, fontWeight: FontWeight.w600)),
           ),
         )
       ],
