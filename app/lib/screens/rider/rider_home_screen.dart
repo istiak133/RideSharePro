@@ -11,6 +11,7 @@ import 'package:rideshare_app/config/theme.dart';
 import 'package:rideshare_app/services/location_service.dart';
 import 'package:rideshare_app/services/api_service.dart';
 import 'package:rideshare_app/screens/rider/parcel_screen.dart';
+import 'package:rideshare_app/screens/rider/active_ride_screen.dart';
 import 'package:rideshare_app/screens/chat_screen.dart';
 import 'dart:async';
 
@@ -242,50 +243,7 @@ class _RiderHomeScreenState extends State<RiderHomeScreen> {
           ),
 
           // Bottom action
-          if (_activeRideId != null)
-            Positioned(
-              bottom: 100, left: 16, right: 16,
-              child: Container(
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  color: AppTheme.bgCard,
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: AppTheme.primary.withValues(alpha: 0.3)),
-                  boxShadow: [BoxShadow(color: AppTheme.primary.withValues(alpha: 0.1), blurRadius: 20)],
-                ),
-                child: Row(
-                  children: [
-                    const CircleAvatar(
-                      backgroundColor: AppTheme.bgSurface,
-                      radius: 24,
-                      child: Icon(Icons.two_wheeler, color: AppTheme.primary),
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text('Driver Assigned', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
-                          Text('OTP: $_activeRideOtp', style: const TextStyle(color: AppTheme.textHint, fontSize: 13)),
-                        ],
-                      ),
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.chat_bubble_rounded, color: AppTheme.primary),
-                      onPressed: () {
-                        Navigator.push(context, MaterialPageRoute(
-                          builder: (_) => ChatScreen(
-                            rideId: _activeRideId!,
-                            receiverName: 'Driver',
-                          ),
-                        ));
-                      },
-                    ),
-                  ],
-                ),
-              ),
-            )
-          else if (_dropLocation != null)
+          if (_dropLocation != null)
             Positioned(
               bottom: 100, left: 16, right: 16,
               child: ElevatedButton.icon(
@@ -420,13 +378,17 @@ class _RiderHomeScreenState extends State<RiderHomeScreen> {
                   
                   if (mounted) {
                     Navigator.pop(context); // close loading
-                    setState(() {
-                      _activeRideId = res['data']['id'];
-                      _activeRideOtp = res['data']['pickup_otp'];
-                    });
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('🏍️ Ride booked! OTP: $_activeRideOtp'), backgroundColor: AppTheme.primary),
-                    );
+                    
+                    // Navigate to Active Ride Screen
+                    Navigator.push(context, MaterialPageRoute(
+                      builder: (_) => ActiveRideScreen(
+                        rideId: res['data']['id'],
+                        pickupLocation: _pickupLocation!,
+                        dropLocation: _dropLocation!,
+                        routePoints: _routePoints,
+                        otp: res['data']['pickup_otp'],
+                      ),
+                    ));
                   }
                 } catch (e) {
                   if (mounted) {
