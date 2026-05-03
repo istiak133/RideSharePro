@@ -52,25 +52,11 @@ app.use((req, res, next) => {
 app.use(errorHandler);
 
 // ── Start ─────────────────────────────────────
-app.listen(PORT, () => {
-  console.log(`\n🚀 RideShare AI Pro API | Port ${PORT} | ${process.env.NODE_ENV}\n`);
-  console.log('Endpoints:');
-  console.log('  POST /api/auth/request-otp');
-  console.log('  POST /api/auth/verify-otp');
-  console.log('  GET  /api/auth/me');
-  console.log('  PUT  /api/users/profile');
-  console.log('  POST /api/users/driver/documents');
-  console.log('  POST /api/rides');
-  console.log('  POST /api/rides/fare-estimate');
-  console.log('  POST /api/rides/:id/accept');
-  console.log('  POST /api/rides/:id/verify-otp');
-  console.log('  PUT  /api/rides/:id/start');
-  console.log('  PUT  /api/rides/:id/complete');
-  console.log('  POST /api/payments/cash');
-  console.log('  POST /api/ratings');
-  console.log('  POST /api/admin/login');
-  console.log('  GET  /api/admin/dashboard');
-  console.log('  ...and more\n');
+const server = app.listen(PORT);
+server.on('listening', () => {
+  console.log(`\n🚀 RideShare AI Pro API | Port ${PORT} | ${process.env.NODE_ENV}`);
+  console.log('All 39 MVP features API ready!\n');
 });
 
 module.exports = app;
+

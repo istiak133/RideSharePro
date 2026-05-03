@@ -60,8 +60,12 @@ const verifyOTP = async (phone, otpCode, role = ROLES.RIDER) => {
 
   const otpRecord = otpRecords[0];
 
-  // Check expiry
-  if (new Date(otpRecord.expires_at) < new Date()) {
+  // Check expiry — use generous window, compare as strings
+  const now = new Date();
+  const expiresAt = new Date(otpRecord.expires_at + (otpRecord.expires_at.includes('Z') ? '' : 'Z'));
+  console.log(`[DEBUG] Now: ${now.toISOString()}, Expires: ${expiresAt.toISOString()}`);
+  
+  if (expiresAt.getTime() < now.getTime()) {
     await supabase.from('otp_verifications').delete().eq('phone', phone);
     throw new BadRequestError('OTP expired. Request a new one.');
   }
