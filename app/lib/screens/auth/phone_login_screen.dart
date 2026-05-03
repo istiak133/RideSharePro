@@ -30,7 +30,7 @@ class _PhoneLoginScreenState extends State<PhoneLoginScreen> {
     final phone = _phoneController.text.trim();
     if (phone.length != 11 || !phone.startsWith('01')) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('সঠিক ১১ ডিজিটের ফোন নম্বর দিন'), backgroundColor: AppTheme.error),
+        const SnackBar(content: Text('Please enter a valid 11-digit phone number'), backgroundColor: AppTheme.error),
       );
       return;
     }
@@ -44,7 +44,7 @@ class _PhoneLoginScreenState extends State<PhoneLoginScreen> {
       ));
     } else if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(auth.error ?? 'OTP পাঠাতে সমস্যা হয়েছে'), backgroundColor: AppTheme.error),
+        SnackBar(content: Text(auth.error ?? 'Failed to send OTP'), backgroundColor: AppTheme.error),
       );
     }
   }
@@ -78,23 +78,23 @@ class _PhoneLoginScreenState extends State<PhoneLoginScreen> {
 
               Center(child: Text('RideShare AI Pro', style: Theme.of(context).textTheme.headlineLarge)),
               const SizedBox(height: 8),
-              Center(child: Text('আপনার যাত্রা শুরু করুন', style: Theme.of(context).textTheme.bodyLarge)),
+              Center(child: Text('Start your journey', style: Theme.of(context).textTheme.bodyLarge)),
               const SizedBox(height: 48),
 
               // Role selection
-              Text('আপনি কে?', style: Theme.of(context).textTheme.titleMedium),
+              Text('Who are you?', style: Theme.of(context).textTheme.titleMedium),
               const SizedBox(height: 12),
               Row(
                 children: [
-                  Expanded(child: _roleCard('rider', 'রাইডার', Icons.person_rounded)),
+                  Expanded(child: _roleCard('rider', 'Rider', Icons.person_rounded)),
                   const SizedBox(width: 12),
-                  Expanded(child: _roleCard('driver', 'ড্রাইভার', Icons.drive_eta_rounded)),
+                  Expanded(child: _roleCard('driver', 'Driver', Icons.drive_eta_rounded)),
                 ],
               ),
               const SizedBox(height: 32),
 
               // Phone input
-              Text('ফোন নম্বর', style: Theme.of(context).textTheme.titleMedium),
+              Text('Phone Number', style: Theme.of(context).textTheme.titleMedium),
               const SizedBox(height: 12),
               TextField(
                 controller: _phoneController,
@@ -125,13 +125,13 @@ class _PhoneLoginScreenState extends State<PhoneLoginScreen> {
                 onPressed: auth.isLoading ? null : _submit,
                 child: auth.isLoading
                     ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                    : const Text('OTP পাঠান'),
+                    : const Text('Send OTP'),
               ),
 
               const SizedBox(height: 24),
               Center(
                 child: Text(
-                  'লগইন করে আপনি আমাদের শর্তাবলী মেনে নিচ্ছেন',
+                  'By logging in, you agree to our Terms & Conditions',
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontSize: 12),
                   textAlign: TextAlign.center,
                 ),

@@ -55,7 +55,7 @@ class _OTPScreenState extends State<OTPScreen> {
       );
     } else if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(auth.error ?? 'OTP সঠিক নয়'), backgroundColor: AppTheme.error),
+        SnackBar(content: Text(auth.error ?? 'Invalid OTP'), backgroundColor: AppTheme.error),
       );
     }
   }
@@ -75,14 +75,13 @@ class _OTPScreenState extends State<OTPScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const SizedBox(height: 20),
-              Text('OTP যাচাই করুন', style: Theme.of(context).textTheme.headlineMedium),
+              Text('Verify OTP', style: Theme.of(context).textTheme.headlineMedium),
               const SizedBox(height: 12),
               RichText(text: TextSpan(
                 style: Theme.of(context).textTheme.bodyLarge,
                 children: [
-                  const TextSpan(text: 'আমরা '),
+                  const TextSpan(text: 'We have sent a 6-digit code to '),
                   TextSpan(text: '+88${widget.phone}', style: const TextStyle(color: AppTheme.primary, fontWeight: FontWeight.w600)),
-                  const TextSpan(text: ' নম্বরে একটি ৬ ডিজিটের কোড পাঠিয়েছি'),
                 ],
               )),
 
@@ -131,14 +130,14 @@ class _OTPScreenState extends State<OTPScreen> {
                 onPressed: auth.isLoading ? null : _verify,
                 child: auth.isLoading
                     ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                    : const Text('যাচাই করুন'),
+                    : const Text('Verify'),
               ),
 
               const SizedBox(height: 24),
               Center(
                 child: TextButton(
                   onPressed: () => context.read<AuthProvider>().requestOTP(widget.phone),
-                  child: const Text('আবার OTP পাঠান', style: TextStyle(color: AppTheme.primary)),
+                  child: const Text('Resend OTP', style: TextStyle(color: AppTheme.primary)),
                 ),
               ),
             ],

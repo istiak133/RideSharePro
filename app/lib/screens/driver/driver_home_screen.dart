@@ -79,7 +79,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
                     ),
                     const SizedBox(width: 10),
                     Text(
-                      _isOnline ? 'অনলাইন' : 'অফলাইন',
+                      _isOnline ? 'Online' : 'Offline',
                       style: TextStyle(
                         color: _isOnline ? AppTheme.online : AppTheme.textHint,
                         fontWeight: FontWeight.w600, fontSize: 16,
@@ -132,11 +132,11 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceAround,
                       children: [
-                        _statItem('আজকের আয়', '৳ 0'),
+                        _statItem('Today\'s Earnings', '৳ 0'),
                         Container(width: 1, height: 30, color: AppTheme.textHint),
-                        _statItem('ট্রিপ', '0'),
+                        _statItem('Trips', '0'),
                         Container(width: 1, height: 30, color: AppTheme.textHint),
-                        _statItem('ঘণ্টা', '0.0'),
+                        _statItem('Hours', '0.0'),
                       ],
                     ),
                   ),
@@ -159,7 +159,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
                     ),
                     child: Center(
                       child: Text(
-                        _isOnline ? '🔴  অফলাইন হোন' : '🟢  অনলাইন হোন',
+                        _isOnline ? '🔴  Go Offline' : '🟢  Go Online',
                         style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w700),
                       ),
                     ),
@@ -176,10 +176,10 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
         indicatorColor: AppTheme.primary.withValues(alpha: 0.2),
         onDestinationSelected: (i) => setState(() => _currentIndex = i),
         destinations: const [
-          NavigationDestination(icon: Icon(Icons.home_rounded), label: 'হোম'),
-          NavigationDestination(icon: Icon(Icons.receipt_long_rounded), label: 'ট্রিপ'),
-          NavigationDestination(icon: Icon(Icons.account_balance_wallet_rounded), label: 'আয়'),
-          NavigationDestination(icon: Icon(Icons.person_rounded), label: 'প্রোফাইল'),
+          NavigationDestination(icon: Icon(Icons.home_rounded), label: 'Home'),
+          NavigationDestination(icon: Icon(Icons.receipt_long_rounded), label: 'Trips'),
+          NavigationDestination(icon: Icon(Icons.account_balance_wallet_rounded), label: 'Earnings'),
+          NavigationDestination(icon: Icon(Icons.person_rounded), label: 'Profile'),
         ],
       ),
     );

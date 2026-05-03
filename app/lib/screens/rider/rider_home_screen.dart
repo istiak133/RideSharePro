@@ -25,7 +25,7 @@ class _RiderHomeScreenState extends State<RiderHomeScreen> {
   LatLng? _dropLocation;
   int _currentIndex = 0;
 
-  final _pickupController = TextEditingController(text: 'আপনার অবস্থান');
+  final _pickupController = TextEditingController(text: 'Your Location');
   final _dropController = TextEditingController();
 
   @override
@@ -92,12 +92,12 @@ class _RiderHomeScreenState extends State<RiderHomeScreen> {
               ),
               child: Column(
                 children: [
-                  _locationRow(Icons.circle, AppTheme.secondary, _pickupController, 'পিকআপ পয়েন্ট'),
+                  _locationRow(Icons.circle, AppTheme.secondary, _pickupController, 'Pickup Point'),
                   Padding(
                     padding: const EdgeInsets.only(left: 12),
                     child: Container(width: 2, height: 20, color: AppTheme.textHint),
                   ),
-                  _locationRow(Icons.location_on, AppTheme.accent, _dropController, 'কোথায় যাবেন?'),
+                  _locationRow(Icons.location_on, AppTheme.accent, _dropController, 'Where to?'),
                 ],
               ),
             ),
@@ -110,7 +110,7 @@ class _RiderHomeScreenState extends State<RiderHomeScreen> {
               child: ElevatedButton.icon(
                 onPressed: _showFareEstimate,
                 icon: const Icon(Icons.local_taxi),
-                label: const Text('রাইড খুঁজুন'),
+                label: const Text('Find Ride'),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppTheme.primary,
                   padding: const EdgeInsets.symmetric(vertical: 18),
@@ -126,10 +126,10 @@ class _RiderHomeScreenState extends State<RiderHomeScreen> {
         indicatorColor: AppTheme.primary.withValues(alpha: 0.2),
         onDestinationSelected: (i) => setState(() => _currentIndex = i),
         destinations: const [
-          NavigationDestination(icon: Icon(Icons.home_rounded), label: 'হোম'),
-          NavigationDestination(icon: Icon(Icons.history_rounded), label: 'ট্রিপ'),
-          NavigationDestination(icon: Icon(Icons.inventory_2_rounded), label: 'পার্সেল'),
-          NavigationDestination(icon: Icon(Icons.person_rounded), label: 'প্রোফাইল'),
+          NavigationDestination(icon: Icon(Icons.home_rounded), label: 'Home'),
+          NavigationDestination(icon: Icon(Icons.history_rounded), label: 'Trips'),
+          NavigationDestination(icon: Icon(Icons.inventory_2_rounded), label: 'Parcel'),
+          NavigationDestination(icon: Icon(Icons.person_rounded), label: 'Profile'),
         ],
       ),
     );
@@ -170,7 +170,7 @@ class _RiderHomeScreenState extends State<RiderHomeScreen> {
           children: [
             Container(width: 40, height: 4, decoration: BoxDecoration(color: AppTheme.textHint, borderRadius: BorderRadius.circular(2))),
             const SizedBox(height: 20),
-            Text('ভাড়া আনুমানিক', style: Theme.of(context).textTheme.titleLarge),
+            Text('Fare Estimate', style: Theme.of(context).textTheme.titleLarge),
             const SizedBox(height: 16),
             Container(
               padding: const EdgeInsets.all(20),
@@ -186,8 +186,8 @@ class _RiderHomeScreenState extends State<RiderHomeScreen> {
                     ),
                     const SizedBox(width: 12),
                     const Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      Text('কার', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 16)),
-                      Text('4 সিট • AC', style: TextStyle(color: AppTheme.textSecondary, fontSize: 13)),
+                      Text('Car', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 16)),
+                      Text('4 Seats • AC', style: TextStyle(color: AppTheme.textSecondary, fontSize: 13)),
                     ]),
                   ]),
                   const Text('৳ 330', style: TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.w700)),
@@ -199,10 +199,10 @@ class _RiderHomeScreenState extends State<RiderHomeScreen> {
               onPressed: () {
                 Navigator.pop(ctx);
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('🚗 ড্রাইভার খোঁজা হচ্ছে...'), backgroundColor: AppTheme.primary),
+                  const SnackBar(content: Text('🚗 Looking for a driver...'), backgroundColor: AppTheme.primary),
                 );
               },
-              child: const Text('রাইড বুক করুন'),
+              child: const Text('Book Ride'),
             ),
             const SizedBox(height: 12),
           ],
