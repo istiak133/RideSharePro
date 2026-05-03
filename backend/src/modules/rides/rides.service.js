@@ -383,6 +383,15 @@ const completeRide = async (rideId, driverUserId, actualDistance, actualDuration
     await supabase.from('drivers').update({ total_rides: (driver.total_rides || 0) + 1, status: 'online' }).eq('user_id', driverUserId);
   }
 
+  // Notify Rider
+  await sendNotification(
+    data.rider_id, 
+    NOTIFICATION_TYPES.RIDE_COMPLETED, 
+    'Ride Completed', 
+    `You have arrived at your destination. Total fare: ৳${fareEstimate.estimated_fare}.`, 
+    { ride_id: rideId, amount: fareEstimate.estimated_fare }
+  );
+
   return data;
 };
 
