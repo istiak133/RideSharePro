@@ -24,10 +24,16 @@ const authenticate = async (req, res, next) => {
       throw new UnauthorizedError(err.name === 'TokenExpiredError' ? 'Token expired.' : 'Invalid token.');
     }
 
+    // Bypass DB check for hardcoded MVP admin
+    if (decoded.role === 'admin' && decoded.id === 'admin-123') {
+      req.user = { id: 'admin-123', role: 'admin', username: decoded.username };
+      return next();
+    }
+
     const { data: user } = await supabase
       .from('users')
       .select('id, phone, role, status')
-      .eq('id', decoded.userId)
+      .eq('id', decoded.userId || decoded.id)
       .single();
 
     if (!user) throw new UnauthorizedError('User not found.');
