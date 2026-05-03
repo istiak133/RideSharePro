@@ -317,7 +317,11 @@ class _ActiveRideScreenState extends State<ActiveRideScreen> with SingleTickerPr
             const SizedBox(width: 12),
             _buildActionButton(Icons.chat_bubble_rounded, () {
               Navigator.push(context, MaterialPageRoute(
-                builder: (_) => ChatScreen(rideId: widget.rideId, receiverName: 'Rahim Uddin'),
+                builder: (_) => ChatScreen(
+                  rideId: widget.rideId,
+                  peerName: 'Rahim Uddin',
+                  peerRole: 'Driver',
+                ),
               ));
             }),
             const SizedBox(width: 12),
