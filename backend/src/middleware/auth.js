@@ -1,61 +1,39 @@
 // ============================================
-// RideShare AI Pro — Auth Middleware
-// Verifies JWT token on protected routes
+// RideShare AI Pro — Auth Middleware (Supabase)
 // ============================================
 
 const { verifyToken } = require('../utils/helpers');
 const { UnauthorizedError, ForbiddenError } = require('../utils/errors');
-const { query } = require('../config/database');
+const { supabase } = require('../config/supabase');
 
 /**
  * Authenticate user via JWT token
- * Attaches user object to req.user
  */
 const authenticate = async (req, res, next) => {
   try {
-    // Get token from header
     const authHeader = req.headers.authorization;
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      throw new UnauthorizedError('No token provided. Please login.');
+      throw new UnauthorizedError('No token provided.');
     }
 
     const token = authHeader.split(' ')[1];
-
-    // Verify token
     let decoded;
     try {
       decoded = verifyToken(token);
     } catch (err) {
-      if (err.name === 'TokenExpiredError') {
-        throw new UnauthorizedError('Token expired. Please login again.');
-      }
-      throw new UnauthorizedError('Invalid token.');
+      throw new UnauthorizedError(err.name === 'TokenExpiredError' ? 'Token expired.' : 'Invalid token.');
     }
 
-    // Check if user exists and is active
-    const result = await query(
-      'SELECT id, phone, role, status FROM users WHERE id = $1',
-      [decoded.userId]
-    );
+    const { data: user } = await supabase
+      .from('users')
+      .select('id, phone, role, status')
+      .eq('id', decoded.userId)
+      .single();
 
-    if (result.rows.length === 0) {
-      throw new UnauthorizedError('User not found.');
-    }
+    if (!user) throw new UnauthorizedError('User not found.');
+    if (user.status === 'blocked') throw new ForbiddenError('Account blocked.');
 
-    const user = result.rows[0];
-
-    if (user.status === 'blocked') {
-      throw new ForbiddenError('Your account has been blocked. Contact support.');
-    }
-
-    // Attach user to request
-    req.user = {
-      id: user.id,
-      phone: user.phone,
-      role: user.role,
-      status: user.status,
-    };
-
+    req.user = user;
     next();
   } catch (error) {
     next(error);
@@ -63,17 +41,12 @@ const authenticate = async (req, res, next) => {
 };
 
 /**
- * Restrict access to specific roles
- * Usage: authorize('rider') or authorize('driver') or authorize('rider', 'driver')
+ * Role-based authorization
  */
 const authorize = (...roles) => {
   return (req, res, next) => {
-    if (!req.user) {
-      return next(new UnauthorizedError('Please login first.'));
-    }
-    if (!roles.includes(req.user.role)) {
-      return next(new ForbiddenError(`Access denied. Required role: ${roles.join(' or ')}`));
-    }
+    if (!req.user) return next(new UnauthorizedError('Login required.'));
+    if (!roles.includes(req.user.role)) return next(new ForbiddenError('Access denied.'));
     next();
   };
 };

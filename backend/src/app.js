@@ -1,5 +1,6 @@
 // ============================================
 // RideShare AI Pro — Express App Entry Point
+// All 39 features served from here
 // ============================================
 
 require('dotenv').config();
@@ -8,94 +9,68 @@ const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
 const morgan = require('morgan');
-
 const errorHandler = require('./middleware/errorHandler');
-const { testConnection } = require('./config/database');
 
-// Import route modules
+// Import all route modules
 const authRoutes = require('./modules/auth/auth.routes');
 const usersRoutes = require('./modules/users/users.routes');
+const ridesRoutes = require('./modules/rides/rides.routes');
+const paymentsRoutes = require('./modules/payments/payments.routes');
+const ratingsRoutes = require('./modules/ratings/ratings.routes');
+const notificationsRoutes = require('./modules/notifications/notifications.routes');
+const adminRoutes = require('./modules/admin/admin.routes');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
 
 // ── Middleware ─────────────────────────────────
-app.use(helmet());                        // Security headers
-app.use(cors());                          // Allow cross-origin requests
-app.use(express.json({ limit: '10mb' })); // Parse JSON bodies
-app.use(express.urlencoded({ extended: true }));
-
-// Request logging (dev only)
-if (process.env.NODE_ENV === 'development') {
-  app.use(morgan('dev'));
-}
+app.use(helmet());
+app.use(cors());
+app.use(express.json({ limit: '10mb' }));
+if (process.env.NODE_ENV === 'development') app.use(morgan('dev'));
 
 // ── Health Check ──────────────────────────────
 app.get('/api/health', (req, res) => {
-  res.json({
-    success: true,
-    message: '🚀 RideShare AI Pro API is running!',
-    version: '1.0.0',
-    environment: process.env.NODE_ENV,
-    timestamp: new Date().toISOString(),
-  });
+  res.json({ success: true, message: '🚀 RideShare AI Pro API running!', env: process.env.NODE_ENV });
 });
 
 // ── API Routes ────────────────────────────────
-app.use('/api/auth', authRoutes);
-app.use('/api/users', usersRoutes);
+app.use('/api/auth', authRoutes);           // F1, F19
+app.use('/api/users', usersRoutes);         // F2, F20, F21
+app.use('/api/rides', ridesRoutes);         // F3-F11, F22-F29, F31
+app.use('/api/payments', paymentsRoutes);   // F13, F14, F30
+app.use('/api/ratings', ratingsRoutes);     // F16
+app.use('/api/notifications', notificationsRoutes); // F17
+app.use('/api/admin', adminRoutes);         // F33-F38, F42-F44
 
-// Future route modules (uncomment when implemented):
-// app.use('/api/rides', ridesRoutes);
-// app.use('/api/payments', paymentsRoutes);
-// app.use('/api/ratings', ratingsRoutes);
-// app.use('/api/notifications', notificationsRoutes);
-// app.use('/api/admin', adminRoutes);
-
-// ── 404 Handler ───────────────────────────────
-app.use('*', (req, res) => {
-  res.status(404).json({
-    success: false,
-    message: `Route ${req.originalUrl} not found`,
-  });
+// ── 404 ───────────────────────────────────────
+app.use((req, res, next) => {
+  res.status(404).json({ success: false, message: `Route ${req.originalUrl} not found` });
 });
 
-// ── Global Error Handler ──────────────────────
+// ── Error Handler ─────────────────────────────
 app.use(errorHandler);
 
-// ── Start Server ──────────────────────────────
-const startServer = async () => {
-  // Test database connection first
-  const dbConnected = await testConnection();
-
-  if (!dbConnected) {
-    console.error('❌ Cannot start server without database connection.');
-    console.log('💡 Make sure PostgreSQL is running and DATABASE_URL is correct in .env');
-    process.exit(1);
-  }
-
-  app.listen(PORT, () => {
-    console.log(`
-╔═══════════════════════════════════════════════╗
-║   🚀 RideShare AI Pro API Server             ║
-║   Port: ${PORT}                                ║
-║   Env:  ${process.env.NODE_ENV || 'development'}                        ║
-║   DB:   Connected ✅                          ║
-╚═══════════════════════════════════════════════╝
-    `);
-    console.log('📌 Available endpoints:');
-    console.log('   GET  /api/health');
-    console.log('   POST /api/auth/request-otp');
-    console.log('   POST /api/auth/verify-otp');
-    console.log('   GET  /api/auth/me');
-    console.log('   PUT  /api/users/profile');
-    console.log('   PUT  /api/users/profile/photo');
-    console.log('   POST /api/users/driver/documents');
-    console.log('   GET  /api/users/driver/verification-status');
-    console.log('');
-  });
-};
-
-startServer();
+// ── Start ─────────────────────────────────────
+app.listen(PORT, () => {
+  console.log(`\n🚀 RideShare AI Pro API | Port ${PORT} | ${process.env.NODE_ENV}\n`);
+  console.log('Endpoints:');
+  console.log('  POST /api/auth/request-otp');
+  console.log('  POST /api/auth/verify-otp');
+  console.log('  GET  /api/auth/me');
+  console.log('  PUT  /api/users/profile');
+  console.log('  POST /api/users/driver/documents');
+  console.log('  POST /api/rides');
+  console.log('  POST /api/rides/fare-estimate');
+  console.log('  POST /api/rides/:id/accept');
+  console.log('  POST /api/rides/:id/verify-otp');
+  console.log('  PUT  /api/rides/:id/start');
+  console.log('  PUT  /api/rides/:id/complete');
+  console.log('  POST /api/payments/cash');
+  console.log('  POST /api/ratings');
+  console.log('  POST /api/admin/login');
+  console.log('  GET  /api/admin/dashboard');
+  console.log('  ...and more\n');
+});
 
 module.exports = app;
