@@ -10,6 +10,8 @@ import 'package:rideshare_app/config/app_config.dart';
 import 'package:rideshare_app/config/theme.dart';
 import 'package:rideshare_app/providers/auth_provider.dart';
 import 'package:rideshare_app/screens/auth/phone_login_screen.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'dart:async';
 
 class DriverHomeScreen extends StatefulWidget {
   const DriverHomeScreen({super.key});
@@ -22,6 +24,78 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
   bool _isOnline = false;
   int _currentIndex = 0;
   final LatLng _currentLocation = LatLng(AppConfig.defaultLat, AppConfig.defaultLng);
+  
+  RealtimeChannel? _rideChannel;
+
+  @override
+  void dispose() {
+    _rideChannel?.unsubscribe();
+    super.dispose();
+  }
+
+  void _toggleOnline() {
+    setState(() => _isOnline = !_isOnline);
+    
+    if (_isOnline) {
+      // Start listening to Supabase for new rides
+      _rideChannel = Supabase.instance.client
+          .channel('public:rides')
+          .onPostgresChanges(
+            event: PostgresChangeEvent.insert,
+            schema: 'public',
+            table: 'rides',
+            callback: (payload) {
+              final newRide = payload.newRecord;
+              if (newRide['status'] == 'searching_driver') {
+                _showIncomingRequest(newRide);
+              }
+            },
+          )
+          .subscribe();
+    } else {
+      // Stop listening
+      _rideChannel?.unsubscribe();
+      _rideChannel = null;
+    }
+  }
+
+  void _showIncomingRequest(Map<String, dynamic> ride) {
+    if (!mounted) return;
+    
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppTheme.bgCard,
+        title: const Text('New Ride Request! 🚨', style: TextStyle(color: Colors.white)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Pickup: ${ride['pickup_address'] ?? 'Unknown'}', style: const TextStyle(color: Colors.white)),
+            const SizedBox(height: 8),
+            Text('Drop: ${ride['drop_address'] ?? 'Unknown'}', style: const TextStyle(color: Colors.white)),
+            const SizedBox(height: 8),
+            Text('Est. Fare: ৳${ride['estimated_fare']}', style: const TextStyle(color: AppTheme.primary, fontWeight: FontWeight.bold, fontSize: 18)),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Decline', style: TextStyle(color: AppTheme.textHint)),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Ride Accepted!')));
+              // TODO: Call /api/rides/:id/accept API
+            },
+            child: const Text('Accept'),
+          ),
+        ],
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -143,7 +217,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
 
                 // Toggle button
                 GestureDetector(
-                  onTap: () => setState(() => _isOnline = !_isOnline),
+                  onTap: _toggleOnline,
                   child: AnimatedContainer(
                     duration: const Duration(milliseconds: 300),
                     padding: const EdgeInsets.symmetric(vertical: 18),

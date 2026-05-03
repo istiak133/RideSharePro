@@ -10,9 +10,17 @@ import 'package:rideshare_app/providers/auth_provider.dart';
 import 'package:rideshare_app/screens/auth/phone_login_screen.dart';
 import 'package:rideshare_app/screens/rider/rider_home_screen.dart';
 import 'package:rideshare_app/screens/driver/driver_home_screen.dart';
+import 'package:rideshare_app/config/app_config.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
-void main() {
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  
+  await Supabase.initialize(
+    url: AppConfig.supabaseUrl,
+    anonKey: AppConfig.supabaseAnonKey,
+  );
+  
   SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
   SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
     statusBarColor: Colors.transparent,

@@ -69,6 +69,7 @@ class AuthProvider with ChangeNotifier {
       notifyListeners();
       return true;
     } catch (e) {
+      print('OTP Verification Error: $e'); // Added detailed log
       _error = e.toString();
       _isLoading = false;
       notifyListeners();
