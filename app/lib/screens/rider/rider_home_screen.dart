@@ -12,6 +12,8 @@ import 'package:rideshare_app/services/location_service.dart';
 import 'package:rideshare_app/services/api_service.dart';
 import 'package:rideshare_app/screens/rider/parcel_screen.dart';
 import 'package:rideshare_app/screens/rider/active_ride_screen.dart';
+import 'package:rideshare_app/screens/rider/trips_screen.dart';
+import 'package:rideshare_app/screens/rider/profile_screen.dart';
 import 'package:rideshare_app/screens/chat_screen.dart';
 import 'dart:async';
 
@@ -138,9 +140,9 @@ class _RiderHomeScreenState extends State<RiderHomeScreen> {
         index: _currentIndex,
         children: [
           _buildMapTab(),
-          const Center(child: Text('Trips - Coming Soon', style: TextStyle(color: Colors.white))),
+          const TripsScreen(),
           const ParcelScreen(),
-          const Center(child: Text('Profile - Coming Soon', style: TextStyle(color: Colors.white))),
+          const ProfileScreen(),
         ],
       ),
       bottomNavigationBar: NavigationBar(

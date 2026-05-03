@@ -5,6 +5,7 @@ import 'package:latlong2/latlong.dart';
 import 'package:rideshare_app/config/theme.dart';
 import 'package:rideshare_app/config/app_config.dart';
 import 'package:rideshare_app/screens/chat_screen.dart';
+import 'package:rideshare_app/screens/rider/payment_screen.dart';
 
 enum RideState { searching, driverAssigned, rideStarted }
 
@@ -366,8 +367,13 @@ class _ActiveRideScreenState extends State<ActiveRideScreen> with SingleTickerPr
           width: double.infinity,
           child: TextButton(
             onPressed: () {
-              // End Ride Demo
-              Navigator.pop(context);
+              // End Ride Demo -> Go to Payment Screen
+              Navigator.pushReplacement(context, MaterialPageRoute(
+                builder: (_) => PaymentScreen(
+                  rideId: widget.rideId,
+                  fareAmount: 120.0, // Demo fare amount
+                ),
+              ));
             },
             style: TextButton.styleFrom(
               backgroundColor: AppTheme.error.withValues(alpha: 0.1),
