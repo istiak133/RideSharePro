@@ -314,14 +314,9 @@ class _ActiveRideScreenState extends State<ActiveRideScreen> with SingleTickerPr
                 child: const Text('Verify OTP (Demo)', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
               ),
             ),
-            const SizedBox(width: 12),
             _buildActionButton(Icons.chat_bubble_rounded, () {
               Navigator.push(context, MaterialPageRoute(
-                builder: (_) => ChatScreen(
-                  rideId: widget.rideId,
-                  peerName: 'Rahim Uddin',
-                  peerRole: 'Driver',
-                ),
+                builder: (_) => ChatScreen(rideId: widget.rideId, receiverName: 'Rahim Uddin'),
               ));
             }),
             const SizedBox(width: 12),

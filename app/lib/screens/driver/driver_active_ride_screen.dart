@@ -4,7 +4,7 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:rideshare_app/config/theme.dart';
 import 'package:rideshare_app/config/app_config.dart';
-import 'package:rideshare_app/screens/shared/chat_screen.dart';
+import 'package:rideshare_app/screens/chat_screen.dart';
 
 enum DriverRideState { goingToPickup, arrivedAtPickup, onTrip }
 
@@ -194,8 +194,7 @@ class _DriverActiveRideScreenState extends State<DriverActiveRideScreen> {
                 Navigator.push(context, MaterialPageRoute(
                   builder: (_) => const ChatScreen(
                     rideId: 'dummy_ride_id',
-                    peerName: 'Rider Name',
-                    peerRole: 'Rider',
+                    receiverName: 'Rider Name',
                   ),
                 ));
               },

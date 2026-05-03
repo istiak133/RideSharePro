@@ -10,7 +10,7 @@ class DriverProfileScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppTheme.bgBackground,
+      backgroundColor: Colors.black,
       appBar: AppBar(
         title: const Text('My Profile'),
         automaticallyImplyLeading: false,

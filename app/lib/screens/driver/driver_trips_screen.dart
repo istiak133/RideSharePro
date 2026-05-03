@@ -7,7 +7,7 @@ class DriverTripsScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppTheme.bgBackground,
+      backgroundColor: Colors.black,
       appBar: AppBar(
         title: const Text('Earnings & Trips'),
         automaticallyImplyLeading: false,
@@ -113,7 +113,7 @@ class DriverTripsScreen extends StatelessWidget {
             ],
           ),
           const Padding(
-            padding: EdgeInsets.only(left: 7, vertical: 2),
+            padding: EdgeInsets.symmetric(horizontal: 7, vertical: 2),
             child: Icon(Icons.more_vert, color: AppTheme.textHint, size: 16),
           ),
           Row(

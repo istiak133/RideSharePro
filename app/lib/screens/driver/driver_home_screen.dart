@@ -171,8 +171,6 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
     );
   }
 
-  @override
-  Widget build(BuildContext context) {
   Widget _buildHomeTab() {
     return Stack(
       children: [
