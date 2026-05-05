@@ -92,10 +92,17 @@ class _ParcelScreenState extends State<ParcelScreen> {
   Widget build(BuildContext context) {
     if (_isLoading) return const Center(child: CircularProgressIndicator());
 
-    return SafeArea(
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
-        child: Column(
+    return Scaffold(
+      backgroundColor: Colors.black,
+      appBar: AppBar(
+        title: const Text('Send a Parcel', style: TextStyle(fontWeight: FontWeight.bold)),
+        backgroundColor: Colors.transparent,
+        automaticallyImplyLeading: false,
+      ),
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(24),
+          child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text('Send a Parcel', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.white)),
