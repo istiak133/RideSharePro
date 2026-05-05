@@ -80,7 +80,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
         event: PostgresChangeEvent.insert,
         schema: 'public',
         table: 'rides',
-        filter: PostgresChangeFilter(type: PostgresChangeFilterType.eq, column: 'status', value: 'searching'),
+        filter: PostgresChangeFilter(type: PostgresChangeFilterType.eq, column: 'status', value: 'searching_driver'),
         callback: (payload) {
           _showIncomingRequest(payload.newRecord);
         },
