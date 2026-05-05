@@ -29,7 +29,7 @@ class _DriverProfileScreenState extends State<DriverProfileScreen> {
       final res = await ApiService.get('/users/driver/verification-status');
       if (mounted) {
         setState(() {
-          _status = res['data']['status'] ?? 'unverified';
+          _status = res['data']['verification_status'] ?? 'unverified';
           _rejectionReason = res['data']['rejection_reason'];
           _isLoading = false;
         });

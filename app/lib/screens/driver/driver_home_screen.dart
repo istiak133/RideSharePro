@@ -11,6 +11,7 @@ import 'package:rideshare_app/config/theme.dart';
 import 'package:rideshare_app/providers/auth_provider.dart';
 import 'package:rideshare_app/screens/auth/phone_login_screen.dart';
 import 'package:rideshare_app/screens/driver/driver_active_ride_screen.dart';
+import 'package:rideshare_app/screens/driver/driver_active_parcel_screen.dart';
 import 'package:rideshare_app/screens/driver/driver_profile_screen.dart';
 import 'package:rideshare_app/screens/driver/driver_trips_screen.dart';
 import 'package:rideshare_app/services/location_service.dart';
@@ -32,10 +33,12 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
   LatLng _currentLocation = LatLng(AppConfig.defaultLat, AppConfig.defaultLng);
   
   RealtimeChannel? _rideChannel;
+  RealtimeChannel? _parcelChannel;
 
   @override
   void dispose() {
     _rideChannel?.unsubscribe();
+    _parcelChannel?.unsubscribe();
     LocationService.stopTracking();
     super.dispose();
   }
@@ -57,11 +60,14 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
         if (mounted) setState(() => _currentLocation = loc);
       });
       _listenForRides();
+      _listenForParcels();
     } else {
       // Going offline
       LocationService.stopTracking();
       _rideChannel?.unsubscribe();
       _rideChannel = null;
+      _parcelChannel?.unsubscribe();
+      _parcelChannel = null;
     }
     
     setState(() => _isOnline = !_isOnline);
@@ -77,6 +83,21 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
         filter: PostgresChangeFilter(type: PostgresChangeFilterType.eq, column: 'status', value: 'searching'),
         callback: (payload) {
           _showIncomingRequest(payload.newRecord);
+        },
+      )
+      .subscribe();
+  }
+
+  void _listenForParcels() {
+    _parcelChannel = Supabase.instance.client
+      .channel('public:parcels')
+      .onPostgresChanges(
+        event: PostgresChangeEvent.insert,
+        schema: 'public',
+        table: 'parcels',
+        filter: PostgresChangeFilter(type: PostgresChangeFilterType.eq, column: 'status', value: 'pending'),
+        callback: (payload) {
+          _showIncomingParcelRequest(payload.newRecord);
         },
       )
       .subscribe();
@@ -189,6 +210,127 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
                         } catch (e) {
                           if (mounted) {
                             ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error accepting ride: $e')));
+                          }
+                        }
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppTheme.primary,
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                      ),
+                      child: const Text('Accept', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showIncomingParcelRequest(Map<String, dynamic> parcel) {
+    if (!mounted) return;
+    
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => Dialog(
+        backgroundColor: Colors.transparent,
+        child: Container(
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            color: AppTheme.bgCard,
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(color: AppTheme.primary.withValues(alpha: 0.5), width: 2),
+            boxShadow: [BoxShadow(color: AppTheme.primary.withValues(alpha: 0.2), blurRadius: 30, spreadRadius: 5)],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 80, height: 80,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: AppTheme.warning.withValues(alpha: 0.2),
+                ),
+                child: const Icon(Icons.local_shipping, color: AppTheme.warning, size: 40),
+              ),
+              const SizedBox(height: 16),
+              const Text('New Parcel Delivery!', style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 24),
+              
+              Row(
+                children: [
+                  const Icon(Icons.my_location, color: AppTheme.primary, size: 20),
+                  const SizedBox(width: 12),
+                  Expanded(child: Text(parcel['pickup_address'] ?? 'Pickup', style: const TextStyle(color: Colors.white, fontSize: 16))),
+                ],
+              ),
+              Padding(
+                padding: const EdgeInsets.only(left: 9, top: 4, bottom: 4),
+                child: Align(alignment: Alignment.centerLeft, child: Container(width: 2, height: 20, color: AppTheme.textHint)),
+              ),
+              Row(
+                children: [
+                  const Icon(Icons.location_on, color: AppTheme.error, size: 20),
+                  const SizedBox(width: 12),
+                  Expanded(child: Text(parcel['drop_address'] ?? 'Dropoff', style: const TextStyle(color: Colors.white, fontSize: 16))),
+                ],
+              ),
+              
+              const SizedBox(height: 24),
+              const Divider(color: AppTheme.bgSurface),
+              const SizedBox(height: 16),
+              
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceAround,
+                children: [
+                  Column(
+                    children: [
+                      const Text('Est. Fare', style: TextStyle(color: AppTheme.textSecondary, fontSize: 12)),
+                      Text('৳${parcel['estimated_fare']}', style: const TextStyle(color: AppTheme.success, fontSize: 20, fontWeight: FontWeight.bold)),
+                    ],
+                  ),
+                  Column(
+                    children: [
+                      const Text('Weight', style: TextStyle(color: AppTheme.textSecondary, fontSize: 12)),
+                      Text('${parcel['weight_kg']} kg', style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+                    ],
+                  ),
+                ],
+              ),
+              
+              const SizedBox(height: 32),
+              
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () => Navigator.pop(ctx),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: Colors.white,
+                        side: const BorderSide(color: AppTheme.bgSurface),
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                      ),
+                      child: const Text('Decline'),
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: () async {
+                        try {
+                          await ApiService.post('/parcels/${parcel['id']}/accept');
+                          if (mounted) {
+                            Navigator.pop(ctx);
+                            Navigator.push(context, MaterialPageRoute(
+                              builder: (_) => DriverActiveParcelScreen(parcelRequest: parcel),
+                            ));
+                          }
+                        } catch (e) {
+                          if (mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error accepting parcel: $e')));
                           }
                         }
                       },
