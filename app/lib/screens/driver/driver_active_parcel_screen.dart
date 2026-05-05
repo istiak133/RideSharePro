@@ -5,6 +5,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
+import 'package:rideshare_app/config/app_config.dart';
 import 'package:rideshare_app/config/theme.dart';
 import 'package:rideshare_app/services/api_service.dart';
 import 'package:url_launcher/url_launcher.dart';
