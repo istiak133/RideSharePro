@@ -134,4 +134,18 @@ router.put('/driver/location', authorize('driver'), async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
+// Polling: Get pending ride requests for driver (no driver assigned yet)
+router.get('/driver/pending-requests', authorize('driver'), async (req, res, next) => {
+  try {
+    const { data } = await require('../../config/supabase').supabase
+      .from('rides')
+      .select('*')
+      .eq('status', 'searching_driver')
+      .is('driver_id', null)
+      .order('created_at', { ascending: false })
+      .limit(1);
+    successResponse(res, data || []);
+  } catch (e) { next(e); }
+});
+
 module.exports = router;

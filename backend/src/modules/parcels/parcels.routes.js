@@ -312,4 +312,18 @@ router.put('/:id/cancel', async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
+// Polling: Get pending parcel requests for driver
+router.get('/pending', async (req, res, next) => {
+  try {
+    const { data } = await supabase
+      .from('parcels')
+      .select('*')
+      .eq('status', 'pending')
+      .is('driver_id', null)
+      .order('created_at', { ascending: false })
+      .limit(1);
+    successResponse(res, data || []);
+  } catch (e) { next(e); }
+});
+
 module.exports = router;

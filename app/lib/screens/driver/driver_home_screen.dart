@@ -34,11 +34,16 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
   
   RealtimeChannel? _rideChannel;
   RealtimeChannel? _parcelChannel;
+  Timer? _pollTimer;
+  String? _lastSeenRideId;
+  String? _lastSeenParcelId;
+  bool _isShowingDialog = false;
 
   @override
   void dispose() {
     _rideChannel?.unsubscribe();
     _parcelChannel?.unsubscribe();
+    _pollTimer?.cancel();
     LocationService.stopTracking();
     super.dispose();
   }
@@ -46,7 +51,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
   void _toggleOnline() async {
     if (!_isOnline) {
       // Going online: check permission & start tracking
-      final hasPerm = await Geolocator.requestPermission() != LocationPermission.denied; // simplified for demo
+      final hasPerm = await Geolocator.requestPermission() != LocationPermission.denied;
       if (!hasPerm) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -61,6 +66,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
       });
       _listenForRides();
       _listenForParcels();
+      _startPolling();
     } else {
       // Going offline
       LocationService.stopTracking();
@@ -68,9 +74,46 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
       _rideChannel = null;
       _parcelChannel?.unsubscribe();
       _parcelChannel = null;
+      _pollTimer?.cancel();
+      _pollTimer = null;
     }
     
     setState(() => _isOnline = !_isOnline);
+  }
+
+  // ── Polling fallback: checks for new rides/parcels every 5 seconds ──
+  void _startPolling() {
+    _pollTimer = Timer.periodic(const Duration(seconds: 5), (_) async {
+      if (!_isOnline || !mounted || _isShowingDialog) return;
+      try {
+        // Check for new ride requests
+        final ridesRes = await ApiService.get('/rides/driver/pending-requests');
+        final rides = ridesRes['data'] as List? ?? [];
+        if (rides.isNotEmpty) {
+          final ride = rides.first;
+          if (ride['id'] != _lastSeenRideId) {
+            _lastSeenRideId = ride['id'];
+            _showIncomingRequest(ride);
+          }
+        }
+      } catch (_) {
+        // Silently ignore polling errors
+      }
+      try {
+        // Check for new parcel requests
+        final parcelsRes = await ApiService.get('/parcels/pending');
+        final parcels = parcelsRes['data'] as List? ?? [];
+        if (parcels.isNotEmpty) {
+          final parcel = parcels.first;
+          if (parcel['id'] != _lastSeenParcelId) {
+            _lastSeenParcelId = parcel['id'];
+            _showIncomingParcelRequest(parcel);
+          }
+        }
+      } catch (_) {
+        // Silently ignore polling errors
+      }
+    });
   }
 
   void _listenForRides() {
@@ -80,9 +123,11 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
         event: PostgresChangeEvent.insert,
         schema: 'public',
         table: 'rides',
-        filter: PostgresChangeFilter(type: PostgresChangeFilterType.eq, column: 'status', value: 'searching_driver'),
         callback: (payload) {
-          _showIncomingRequest(payload.newRecord);
+          final ride = payload.newRecord;
+          if (ride['status'] == 'searching_driver') {
+            _showIncomingRequest(ride);
+          }
         },
       )
       .subscribe();
@@ -95,16 +140,19 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
         event: PostgresChangeEvent.insert,
         schema: 'public',
         table: 'parcels',
-        filter: PostgresChangeFilter(type: PostgresChangeFilterType.eq, column: 'status', value: 'pending'),
         callback: (payload) {
-          _showIncomingParcelRequest(payload.newRecord);
+          final parcel = payload.newRecord;
+          if (parcel['status'] == 'pending') {
+            _showIncomingParcelRequest(parcel);
+          }
         },
       )
       .subscribe();
   }
 
   void _showIncomingRequest(Map<String, dynamic> ride) {
-    if (!mounted) return;
+    if (!mounted || _isShowingDialog) return;
+    _isShowingDialog = true;
     
     // Circular countdown logic can be complex inside showDialog, using simple dialog for now
     showDialog(
@@ -186,7 +234,10 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
                 children: [
                   Expanded(
                     child: OutlinedButton(
-                      onPressed: () => Navigator.pop(ctx),
+                      onPressed: () {
+                        _isShowingDialog = false;
+                        Navigator.pop(ctx);
+                      },
                       style: OutlinedButton.styleFrom(
                         foregroundColor: Colors.white,
                         side: const BorderSide(color: AppTheme.bgSurface),
@@ -201,6 +252,7 @@ class _DriverHomeScreenState extends State<DriverHomeScreen> {
                       onPressed: () async {
                         try {
                           await ApiService.post('/rides/${ride['id']}/accept');
+                          _isShowingDialog = false;
                           if (mounted) {
                             Navigator.pop(ctx);
                             Navigator.push(context, MaterialPageRoute(
